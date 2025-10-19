@@ -97,7 +97,13 @@ const GitaDistributionPortal = () => {
   try {
     // For simplicity, use email format: username@gmail.com
     const email = `${username}@gmail.com`;
-    
+    const email = `${username}@gmail.com`;
+    console.log('=== LOGIN DEBUG ===');
+    console.log('Username entered:', username);
+    console.log('Email generated:', email);
+    console.log('Password length:', password.length);
+    console.log('Auth object:', auth);
+    console.log('==================');
     console.log('Attempting login with email:', email); // Debug log
     
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
