@@ -82,14 +82,24 @@ const GitaDistributionPortal = () => {
 
   // Login handler
   const handleLogin = async (e) => {
-  e.preventDefault();
+  e.preventDefault(); // Add this parameter and prevent default
   
+  // Access state values correctly
   const username = loginForm.username.trim();
   const password = loginForm.password.trim();
   
+  // Validate inputs
+  if (!username || !password) {
+    alert('Please enter both username and password');
+    return;
+  }
+  
   try {
-    // For simplicity, use email format: username@gitaapp.com
+    // For simplicity, use email format: username@gmail.com
     const email = `${username}@gmail.com`;
+    
+    console.log('Attempting login with email:', email); // Debug log
+    
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     
     // Fetch user role from Firestore
@@ -105,10 +115,22 @@ const GitaDistributionPortal = () => {
       if (userData.role === 'team') {
         setSelectedTeam(userData.teamId);
       }
+    } else {
+      alert('User data not found in database');
     }
   } catch (error) {
-    console.error('Login error:', error);
-    alert('Invalid credentials. Please try again.');
+    console.error('Login error:', error.code, error.message);
+    
+    // Better error messages
+    if (error.code === 'auth/user-not-found') {
+      alert('User not found. Please check your username.');
+    } else if (error.code === 'auth/wrong-password') {
+      alert('Incorrect password. Please try again.');
+    } else if (error.code === 'auth/invalid-email') {
+      alert('Invalid username format.');
+    } else {
+      alert(`Login failed: ${error.message}`);
+    }
   }
 };
 
@@ -359,13 +381,10 @@ const GitaDistributionPortal = () => {
             </div>
             
             <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                handleLogin(e);
-              }}
+              type="submit" // Change to submit
+              onClick={handleLogin} // Simplified - remove the wrapper
               className="w-full bg-orange-600 text-white py-2 rounded-lg hover:bg-orange-700 transition-colors font-medium"
-            >
+              >
               Login
             </button>
           </form>
