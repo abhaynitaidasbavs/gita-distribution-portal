@@ -89,7 +89,7 @@ const GitaDistributionPortal = () => {
   
   try {
     // For simplicity, use email format: username@gitaapp.com
-    const email = `${username}@gitaapp.com`;
+    const email = `${username}@gmail.com`;
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     
     // Fetch user role from Firestore
