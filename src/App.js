@@ -87,6 +87,14 @@ const GitaDistributionPortal = () => {
   // Access state values correctly
   const username = loginForm.username.trim();
   const password = loginForm.password.trim();
+  const email = `${username}@gmail.com`;
+  console.log('=== LOGIN DEBUG ===');
+  console.log('Username entered:', username);
+  console.log('Email generated:', email);
+  console.log('Password length:', password.length);
+  console.log('Auth object:', auth);
+  console.log('==================');
+  console.log('Attempting login with email:', email); // Debug log
   
   // Validate inputs
   if (!username || !password) {
