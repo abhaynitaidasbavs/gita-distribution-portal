@@ -65,7 +65,7 @@ const GitaDistributionPortal = () => {
       }
     );
   
-  return () => unsubscribe();
+  return () => unsubscribeTeams();
 }, [isLoggedIn]);
 
   const [requirements, setRequirements] = useState([]);
