@@ -41,6 +41,7 @@ const GitaDistributionPortal = () => {
       setSchools(schoolsData);
     }
   );
+}, [isLoggedIn]);
   //Fetch teams in real time  
   useEffect(() => {
     if (!isLoggedIn) return;
