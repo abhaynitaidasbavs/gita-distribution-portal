@@ -1,4 +1,7 @@
 import { db, auth } from './firebase';
+import { auth } from './firebase-config';
+import { onAuthStateChanged } from 'firebase/auth';
+
 import { 
   collection, 
   addDoc, 
@@ -18,6 +21,12 @@ import {
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Download, Users, BookOpen, DollarSign, Package, Bell, Edit2, Trash2, Eye, Filter, X, Check, AlertCircle, LogOut, Save } from 'lucide-react';
 
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    console.log('Logged in UID:', user.uid);
+    console.log('Email:', user.email);
+  }
+});
 const GitaDistributionPortal = () => {
   // Authentication state
   const [isLoggedIn, setIsLoggedIn] = useState(false);
