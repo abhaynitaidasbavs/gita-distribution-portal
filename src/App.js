@@ -12,7 +12,8 @@ import {
 } from 'firebase/firestore';
 import { 
   signInWithEmailAndPassword, 
-  signOut 
+  signOut,
+  createUserWithEmailAndPassword 
 } from 'firebase/auth';
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Download, Users, BookOpen, DollarSign, Package, Bell, Edit2, Trash2, Eye, Filter, X, Check, AlertCircle, LogOut, Save } from 'lucide-react';
