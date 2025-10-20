@@ -274,7 +274,7 @@ const GitaDistributionPortal = () => {
       }
 
       // Create Firebase Authentication user
-      const email = `${teamForm.username}@gitaapp.com`;
+      const email = `${teamForm.username}@gmail.com`;
       const userCredential = await createUserWithEmailAndPassword(auth, email, teamForm.password);
       const uid = userCredential.user.uid;
 
