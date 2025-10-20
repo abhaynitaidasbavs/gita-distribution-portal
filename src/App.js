@@ -6,7 +6,8 @@ import {
   addDoc, 
   updateDoc, 
   deleteDoc, 
-  doc, 
+  doc,
+  setDoc,
   getDocs, 
   query, 
   where,
@@ -277,31 +278,34 @@ const GitaDistributionPortal = () => {
       const email = `${teamForm.username}@gmail.com`;
       const userCredential = await createUserWithEmailAndPassword(auth, email, teamForm.password);
       const uid = userCredential.user.uid;
-
-      // Create team document in Firestore
-      const teamRef = await addDoc(collection(db, 'teams'), {
+      // Step 2: Generate unique team ID
+      const teamId = `team_${Date.now()}`;
+      // Step 3: Create team document in 'teams' collection
+      await setDoc(doc(db, 'teams', teamId), {
+        id: teamId,
         name: teamForm.name,
         username: teamForm.username,
         contact: teamForm.contact,
         setsRemaining: parseInt(teamForm.setsRemaining) || 0,
         createdAt: new Date().toISOString(),
-        uid: uid
-      });
+        userId: newUserUid // Link to auth UID
+    });
 
       // Create user document with role information
-      await addDoc(collection(db, 'users'), {
-        username: teamForm.username,
-        name: teamForm.name,
-        role: 'team',
-        teamId: teamRef.id,
-        uid: uid,
-        contact: teamForm.contact,
-        createdAt: new Date().toISOString()
-      });
+      await setDoc(doc(db, 'users', newUserUid), { // ✅ Use UID as document ID
+      username: teamForm.username,
+      name: teamForm.name,
+      email: email,
+      role: 'team',
+      teamId: teamId,
+      contact: teamForm.contact,
+      setsRemaining: parseInt(teamForm.setsRemaining) || 0,
+      createdAt: new Date().toISOString()
+    });
 
       resetTeamForm();
       setShowModal(false);
-      alert('Team added successfully! They can now log in with their credentials.');
+      alert(`Team "${teamForm.name}" added successfully! Login: ${email}`);
     } catch (error) {
       console.error('Error adding team:', error);
       if (error.code === 'auth/email-already-in-use') {
