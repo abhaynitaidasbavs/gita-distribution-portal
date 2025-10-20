@@ -41,13 +41,42 @@ const GitaDistributionPortal = () => {
       setSchools(schoolsData);
     }
   );
+  //Fetch teams in real time  
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    
+    const unsubscribeTeams = onSnapshot(
+      collection(db, 'teams'), 
+      (snapshot) => {
+        const teamsData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setTeams(teamsData);
+      }
+    );
   
   return () => unsubscribe();
 }, [isLoggedIn]);
 
-  const [requirements, setRequirements] = useState([
-    { id: 1, teamId: 1, teluguQuantity: 120, englishQuantity: 80, reason: 'High demand in upcoming areas', status: 'pending', date: '2025-10-18' }
-  ]);
+  const [requirements, setRequirements] = useState([]);
+  // Fetch requirements in real-time
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    
+    const unsubscribeRequirements = onSnapshot(
+      collection(db, 'requirements'), 
+      (snapshot) => {
+        const requirementsData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setRequirements(requirementsData);
+      }
+    );
+    
+    return () => unsubscribeRequirements();
+  }, [isLoggedIn]);
 
   // UI State
   const [activeView, setActiveView] = useState('dashboard');
@@ -163,24 +192,34 @@ const GitaDistributionPortal = () => {
 
   // CRUD operations
   const addSchool = async () => {
-  try {
-    const newSchool = {
-      teamId: currentUser.role === 'admin' ? selectedTeam : currentUser.id,
-      ...schoolForm,
-      moneySettled: false,
-      createdAt: new Date().toISOString()
-    };
+    try {
+      const teamId = currentUser.role === 'admin' ? selectedTeam : currentUser.teamId;
+      
+      if (!teamId) {
+        alert('Please select a team first');
+        return;
+      }
+      
+      const newSchool = {
+        teamId: teamId,
+        ...schoolForm,
+        moneySettled: false,
+        createdAt: new Date().toISOString()
+      };
     
     await addDoc(collection(db, 'schools'), newSchool);
     
     // Update team's remaining sets
-    const teamRef = doc(db, 'teams', newSchool.teamId);
-    const team = teams.find(t => t.id === newSchool.teamId);
-    const setsUsed = parseInt(schoolForm.setsDistributed) + parseInt(schoolForm.freeSetsGiven);
-    
-    await updateDoc(teamRef, {
-      setsRemaining: team.setsRemaining - setsUsed
-    });
+    const team = teams.find(t => t.id === teamId);
+    if (team) {
+      const totalSets = parseInt(schoolForm.teluguSetsDistributed) + 
+                        parseInt(schoolForm.englishSetsDistributed) + 
+                        parseInt(schoolForm.freeSetsGiven);
+      const teamRef = doc(db, 'teams', teamId);
+      await updateDoc(teamRef, {
+        setsRemaining: team.setsRemaining - totalSets
+      });
+    }
     
     resetSchoolForm();
     setShowModal(false);
@@ -217,49 +256,123 @@ const GitaDistributionPortal = () => {
   }
 };
 
-  const addTeam = () => {
-    const newTeam = {
-      id: teams.length + 1,
-      ...teamForm
-    };
-    setTeams([...teams, newTeam]);
-    resetTeamForm();
-    setShowModal(false);
-    alert('Team added successfully!');
+  const addTeam = async () => {
+    try {
+      // Validate inputs
+      if (!teamForm.name || !teamForm.username || !teamForm.password || !teamForm.contact) {
+        alert('Please fill in all required fields');
+        return;
+      }
+
+      // Create Firebase Authentication user
+      const email = `${teamForm.username}@gitaapp.com`;
+      const userCredential = await createUserWithEmailAndPassword(auth, email, teamForm.password);
+      const uid = userCredential.user.uid;
+
+      // Create team document in Firestore
+      const teamRef = await addDoc(collection(db, 'teams'), {
+        name: teamForm.name,
+        username: teamForm.username,
+        contact: teamForm.contact,
+        setsRemaining: parseInt(teamForm.setsRemaining) || 0,
+        createdAt: new Date().toISOString(),
+        uid: uid
+      });
+
+      // Create user document with role information
+      await addDoc(collection(db, 'users'), {
+        username: teamForm.username,
+        name: teamForm.name,
+        role: 'team',
+        teamId: teamRef.id,
+        uid: uid,
+        contact: teamForm.contact,
+        createdAt: new Date().toISOString()
+      });
+
+      resetTeamForm();
+      setShowModal(false);
+      alert('Team added successfully! They can now log in with their credentials.');
+    } catch (error) {
+      console.error('Error adding team:', error);
+      if (error.code === 'auth/email-already-in-use') {
+        alert('This username is already taken. Please choose a different username.');
+      } else if (error.code === 'auth/weak-password') {
+        alert('Password should be at least 6 characters long.');
+      } else {
+        alert('Error adding team: ' + error.message);
+      }
+    }
   };
 
-  const raiseRequirement = () => {
-    const newReq = {
-      id: requirements.length + 1,
-      teamId: currentUser.id,
-      ...requirementForm,
-      status: 'pending',
-      date: new Date().toISOString().split('T')[0]
-    };
-    setRequirements([...requirements, newReq]);
-    setNotifications([...notifications, {
-      id: Date.now(),
-      message: `${currentUser.name} raised requirement for ${requirementForm.teluguQuantity} Telugu sets and ${requirementForm.englishQuantity} English sets`,
-      date: new Date().toISOString()
-    }]);
-    resetRequirementForm();
-    setShowModal(false);
-    alert('Requirement raised successfully!');
+  const raiseRequirement = async () => {
+    try {
+      const newReq = {
+        teamId: currentUser.teamId,
+        teamName: currentUser.name,
+        teluguQuantity: parseInt(requirementForm.teluguQuantity) || 0,
+        englishQuantity: parseInt(requirementForm.englishQuantity) || 0,
+        reason: requirementForm.reason,
+        status: 'pending',
+        date: new Date().toISOString().split('T')[0],
+        createdAt: new Date().toISOString()
+      };
+      
+      await addDoc(collection(db, 'requirements'), newReq);
+      
+      setNotifications([...notifications, {
+        id: Date.now(),
+        message: `${currentUser.name} raised requirement for ${requirementForm.teluguQuantity} Telugu sets and ${requirementForm.englishQuantity} English sets`,
+        date: new Date().toISOString()
+      }]);
+      
+      resetRequirementForm();
+      setShowModal(false);
+      alert('Requirement raised successfully!');
+    } catch (error) {
+      console.error('Error raising requirement:', error);
+      alert('Error raising requirement. Please try again.');
+    }
   };
 
-  const updateTeamSets = (teamId, newValue) => {
-    setTeams(teams.map(t => t.id === teamId ? {...t, setsRemaining: parseInt(newValue)} : t));
+  const updateTeamSets = async (teamId, newValue) => {
+    try {
+      const teamRef = doc(db, 'teams', teamId);
+      await updateDoc(teamRef, {
+        setsRemaining: parseInt(newValue) || 0
+      });
+    } catch (error) {
+      console.error('Error updating team sets:', error);
+      alert('Error updating sets. Please try again.');
+    }
   };
 
-  const toggleMoneySettled = (schoolId) => {
-    setSchools(schools.map(s => s.id === schoolId ? {...s, moneySettled: !s.moneySettled} : s));
+  const toggleMoneySettled = async (schoolId) => {
+    try {
+      const school = schools.find(s => s.id === schoolId);
+      const schoolRef = doc(db, 'schools', schoolId);
+      await updateDoc(schoolRef, {
+        moneySettled: !school.moneySettled
+      });
+    } catch (error) {
+      console.error('Error updating money settled status:', error);
+      alert('Error updating status. Please try again.');
+    }
   };
 
-  const approveRequirement = (reqId) => {
-    setRequirements(requirements.map(r => r.id === reqId ? {...r, status: 'approved'} : r));
-    alert('Requirement approved!');
+  const approveRequirement = async (reqId) => {
+    try {
+      const reqRef = doc(db, 'requirements', reqId);
+      await updateDoc(reqRef, {
+        status: 'approved',
+        approvedAt: new Date().toISOString()
+      });
+      alert('Requirement approved!');
+    } catch (error) {
+      console.error('Error approving requirement:', error);
+      alert('Error approving requirement. Please try again.');
+    }
   };
-
   // Reset forms
   const resetSchoolForm = () => {
     setSchoolForm({
