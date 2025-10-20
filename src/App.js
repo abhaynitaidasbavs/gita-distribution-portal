@@ -277,7 +277,7 @@ const GitaDistributionPortal = () => {
       // Create Firebase Authentication user
       const email = `${teamForm.username}@gmail.com`;
       const userCredential = await createUserWithEmailAndPassword(auth, email, teamForm.password);
-      const uid = userCredential.user.uid;
+      const newUserUid = userCredential.user.uid; // ✅ This is the key - get the UID
       // Step 2: Generate unique team ID
       const teamId = `team_${Date.now()}`;
       // Step 3: Create team document in 'teams' collection
