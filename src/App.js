@@ -323,7 +323,8 @@ const GitaDistributionPortal = () => {
         createdAt: new Date().toISOString()
       });
       console.log('User document created successfully');
-
+      // Add a small delay to ensure Firestore has fully propagated the write
+      await new Promise(resolve => setTimeout(resolve, 1000));
       // Step 4: Create team document
       console.log('Creating team document...');
       await setDoc(doc(db, 'teams', teamId), {
