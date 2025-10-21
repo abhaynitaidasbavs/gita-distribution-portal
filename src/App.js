@@ -208,20 +208,31 @@ const GitaDistributionPortal = () => {
   // CRUD operations
   const addSchool = async () => {
     try {
-      const teamId = currentUser.role === 'admin' ? selectedTeam : currentUser.teamId;
-      
+    let teamId;
+    
+    // Determine teamId based on user role
+    if (currentUser.role === 'admin') {
+      teamId = selectedTeam;
       if (!teamId) {
         alert('Please select a team first');
         return;
       }
-      
+    } else {
+      // For team users, get teamId from currentUser
+      teamId = currentUser.teamId;
+      if (!teamId) {
+        alert('Team ID not found. Please contact administrator.');
+        return;
+      }
+    }
+     console.log('Adding school for teamId:', teamId); // Debug log 
       const newSchool = {
         teamId: teamId,
         ...schoolForm,
         moneySettled: false,
         createdAt: new Date().toISOString()
       };
-    
+    console.log('School data:', newSchool); // Debug log
     await addDoc(collection(db, 'schools'), newSchool);
     
     // Update team's remaining sets
@@ -241,6 +252,8 @@ const GitaDistributionPortal = () => {
     alert('School added successfully!');
   } catch (error) {
     console.error('Error adding school:', error);
+    console.error('Error code:', error.code);
+    console.error('Error message:', error.message);
     alert('Error adding school. Please try again.');
   }
 };
