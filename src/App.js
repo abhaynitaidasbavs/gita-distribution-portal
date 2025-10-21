@@ -165,7 +165,7 @@ const GitaDistributionPortal = () => {
     const userDocRef = doc(db, 'users', uid);
     const userDocSnap = await getDoc(userDocRef);
     
-    if (!userDocSnap.exists()) {
+    if (userDocSnap.exists()) {
       const userData = userDocSnap.data();
       setCurrentUser({ ...userData, uid: uid });
       setIsLoggedIn(true);
