@@ -8,6 +8,7 @@ import {
   deleteDoc, 
   doc,
   setDoc,
+  getDoc,
   getDocs, 
   query, 
   where,
@@ -155,15 +156,18 @@ const GitaDistributionPortal = () => {
     console.log('Attempting login with email:', email); // Debug log
     
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    
+    const uid = userCredential.user.uid;
     // Fetch user role from Firestore
-    const userDoc = await getDocs(
-      query(collection(db, 'users'), where('username', '==', username))
-    );
+   // const userDoc = await getDocs(
+     // query(collection(db, 'users'), where('username', '==', username))
+    //);
+    // Fetch user data directly by UID instead of querying
+    const userDocRef = doc(db, 'users', uid);
+    const userDocSnap = await getDoc(userDocRef);
     
-    if (!userDoc.empty) {
-      const userData = userDoc.docs[0].data();
-      setCurrentUser({ ...userData, uid: userCredential.user.uid });
+    if (!userDocSnap.exists()) {
+      const userData = userDocSnap.data();
+      setCurrentUser({ ...userData, uid: uid });
       setIsLoggedIn(true);
       
       if (userData.role === 'team') {
@@ -171,6 +175,7 @@ const GitaDistributionPortal = () => {
       }
     } else {
       alert('User data not found in database');
+      await signOut(auth);
     }
   } catch (error) {
     console.error('Login error:', error.code, error.message);
