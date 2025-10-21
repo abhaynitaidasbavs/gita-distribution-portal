@@ -51,6 +51,7 @@ const GitaDistributionPortal = () => {
       setSchools(schoolsData);
     }
   );
+  return () => unsubscribe();
 }, [isLoggedIn]);
   //Fetch teams in real time  
   useEffect(() => {
@@ -238,13 +239,17 @@ const GitaDistributionPortal = () => {
     // Update team's remaining sets
     const team = teams.find(t => t.id === teamId);
     if (team) {
-      const totalSets = parseInt(schoolForm.teluguSetsDistributed) + 
+      const distributedSets = parseInt(schoolForm.teluguSetsDistributed) + 
                         parseInt(schoolForm.englishSetsDistributed) + 
                         parseInt(schoolForm.freeSetsGiven);
+      const returnedSets = parseInt(schoolForm.teluguSetsTakenBack) + 
+                     parseInt(schoolForm.englishSetsTakenBack);
+      const netDistributed = distributedSets - returnedSets;
+
       const teamRef = doc(db, 'teams', teamId);
       await updateDoc(teamRef, {
-        setsRemaining: team.setsRemaining - totalSets
-      });
+        setsRemaining: team.setsRemaining - netDistributed
+});
     }
     
     resetSchoolForm();
@@ -434,12 +439,20 @@ const GitaDistributionPortal = () => {
     const totalEnglishDistributed = teamSchools.reduce((sum, s) => sum + parseInt(s.englishSetsDistributed || 0), 0);
     const totalDistributed = totalTeluguDistributed + totalEnglishDistributed;
     const totalFree = teamSchools.reduce((sum, s) => sum + parseInt(s.freeSetsGiven || 0), 0);
-    
+    const totalTeluguTakenBack = teamSchools.reduce((sum, s) => 
+                            sum + parseInt(s.teluguSetsTakenBack || 0), 0);
+    const totalEnglishTakenBack = teamSchools.reduce((sum, s) => 
+                            sum + parseInt(s.englishSetsTakenBack || 0), 0);
+    const totalOnHold = teamSchools.reduce((sum, s) => 
+                            sum + parseInt(s.teluguSetsOnHold || 0) + parseInt(s.englishSetsOnHold || 0), 0);
     return {
       totalSchools: teamSchools.length,
       totalCollected,
       totalSettled,
       totalDistributed,
+      totalTeluguTakenBack,
+      totalEnglishTakenBack,
+      totalOnHold,
       totalTeluguDistributed,
       totalEnglishDistributed,
       totalFree,
@@ -452,7 +465,7 @@ const GitaDistributionPortal = () => {
     let filtered = schools;
     
     if (currentUser?.role === 'team') {
-      filtered = filtered.filter(s => s.teamId === currentUser.id);
+      filtered = filtered.filter(s => s.teamId === currentUser.teamId);
     } else if (selectedTeam) {
       filtered = filtered.filter(s => s.teamId === selectedTeam);
     }
@@ -639,7 +652,8 @@ const GitaDistributionPortal = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Select Team</label>
                 <select
                   value={selectedTeam || ''}
-                  onChange={(e) => setSelectedTeam(e.target.value ? parseInt(e.target.value) : null)}
+                  onChange={(e) => setSelectedTeam(e.target.value || null)}
+                  //onChange={(e) => setSelectedTeam(e.target.value ? parseInt(e.target.value) : null)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
                 >
                   <option value="">All Teams</option>
@@ -652,7 +666,7 @@ const GitaDistributionPortal = () => {
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {(currentUser.role === 'admin' ? (selectedTeam ? [teams.find(t => t.id === selectedTeam)] : teams) : [currentUser]).map(team => {
+              {(currentUser.role === 'admin' ? (selectedTeam ? [teams.find(t => t.id === selectedTeam)] : teams) : [teams.find(t => t.id === currentUser.teamId)]).filter(Boolean).map(team => {
                 const stats = getTeamStats(team.id);
                 return (
                   <div key={team.id} className="bg-white rounded-lg shadow-md p-6">
