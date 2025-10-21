@@ -297,13 +297,35 @@ const GitaDistributionPortal = () => {
         return;
       }
 
-      // Create Firebase Authentication user
-      const email = `${teamForm.username}@gmail.com`;
-      const userCredential = await createUserWithEmailAndPassword(auth, email, teamForm.password);
-      const newUserUid = userCredential.user.uid; // ✅ This is the key - get the UID
-      // Step 2: Generate unique team ID
+      console.log('Starting team creation process...');
+      
+      // Step 1: Generate unique team ID first
       const teamId = `team_${Date.now()}`;
-      // Step 3: Create team document in 'teams' collection
+      console.log('Generated teamId:', teamId);
+
+      // Step 2: Create Firebase Authentication user
+      const email = `${teamForm.username}@gmail.com`;
+      console.log('Creating auth user with email:', email);
+      
+      const userCredential = await createUserWithEmailAndPassword(auth, email, teamForm.password);
+      const newUserUid = userCredential.user.uid;
+      console.log('Auth user created with UID:', newUserUid);
+
+      // Step 3: Create user document FIRST (this is crucial for Firestore rules)
+      console.log('Creating user document...');
+      await setDoc(doc(db, 'users', newUserUid), {
+        username: teamForm.username,
+        name: teamForm.name,
+        email: email,
+        role: 'team',
+        teamId: teamId,
+        contact: teamForm.contact,
+        createdAt: new Date().toISOString()
+      });
+      console.log('User document created successfully');
+
+      // Step 4: Create team document
+      console.log('Creating team document...');
       await setDoc(doc(db, 'teams', teamId), {
         id: teamId,
         name: teamForm.name,
@@ -311,30 +333,24 @@ const GitaDistributionPortal = () => {
         contact: teamForm.contact,
         setsRemaining: parseInt(teamForm.setsRemaining) || 0,
         createdAt: new Date().toISOString(),
-        userId: newUserUid // Link to auth UID
-    });
-
-      // Create user document with role information
-      await setDoc(doc(db, 'users', newUserUid), { // ✅ Use UID as document ID
-      username: teamForm.username,
-      name: teamForm.name,
-      email: email,
-      role: 'team',
-      teamId: teamId,
-      contact: teamForm.contact,
-      setsRemaining: parseInt(teamForm.setsRemaining) || 0,
-      createdAt: new Date().toISOString()
-    });
+        userId: newUserUid
+      });
+      console.log('Team document created successfully');
 
       resetTeamForm();
       setShowModal(false);
-      alert(`Team "${teamForm.name}" added successfully! Login: ${email}`);
+      alert(`Team "${teamForm.name}" added successfully!\nLogin: ${email}\nPassword: ${teamForm.password}`);
     } catch (error) {
       console.error('Error adding team:', error);
+      console.error('Error code:', error.code);
+      console.error('Error message:', error.message);
+      
       if (error.code === 'auth/email-already-in-use') {
         alert('This username is already taken. Please choose a different username.');
       } else if (error.code === 'auth/weak-password') {
         alert('Password should be at least 6 characters long.');
+      } else if (error.code === 'permission-denied') {
+        alert('Permission denied. Please ensure you are logged in as admin and have proper permissions.');
       } else {
         alert('Error adding team: ' + error.message);
       }
