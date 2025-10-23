@@ -90,6 +90,24 @@ const GitaDistributionPortal = () => {
     return () => unsubscribeRequirements();
   }, [isLoggedIn]);
 
+  // Fetch money settlements in real-time
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    
+    const unsubscribeSettlements = onSnapshot(
+      collection(db, 'moneySettlements'), 
+      (snapshot) => {
+        const settlementsData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setMoneySettlements(settlementsData);
+      }
+    );
+    
+    return () => unsubscribeSettlements();
+  }, [isLoggedIn]);
+
   // UI State
   const [activeView, setActiveView] = useState('dashboard');
   const [selectedTeam, setSelectedTeam] = useState(null);
@@ -99,24 +117,38 @@ const GitaDistributionPortal = () => {
   const [modalType, setModalType] = useState('');
   const [editingItem, setEditingItem] = useState(null);
   const [notifications, setNotifications] = useState([]);
+  const [moneySettlements, setMoneySettlements] = useState([]);
+  const [settlementForm, setSettlementForm] = useState({
+    amount: 0, paymentMethod: 'Cash', date: new Date().toISOString().split('T')[0], notes: ''
+  });
 
   // Form states
   const [schoolForm, setSchoolForm] = useState({
     areaName: '', schoolName: '', announcementStatus: 'Pending',
     teluguSetsDistributed: 0, englishSetsDistributed: 0, 
     teluguSetsTakenBack: 0, englishSetsTakenBack: 0,
-    teluguSetsOnHold: 0, englishSetsOnHold: 0,
+    teluguSetsIssued: 0, englishSetsIssued: 0, // Changed from "on hold" to "issued"
     freeSetsGiven: 0,
     moneyCollected: 0, perSetPrice: 250, contactPerson: '',
-    contactNumber: '', email: '', notes: '', date: new Date().toISOString().split('T')[0]
+    contactNumber: '', email: '', notes: '', date: new Date().toISOString().split('T')[0],
+    payments: [], // Array to track daily payments
+    updates: [] // Array to track daily updates
   });
 
   const [teamForm, setTeamForm] = useState({
-    name: '', username: '', password: '', setsRemaining: 0, contact: ''
+    name: '', username: '', password: '', contact: '',
+    inventory: {
+      gitaTelugu: 0, gitaEnglish: 0,
+      bookletTelugu: 0, bookletEnglish: 0,
+      calendar: 0, chikki: 0
+    }
   });
 
   const [requirementForm, setRequirementForm] = useState({
-    teluguQuantity: 0, englishQuantity: 0, reason: ''
+    gitaTelugu: 0, gitaEnglish: 0,
+    bookletTelugu: 0, bookletEnglish: 0,
+    calendar: 0, chikki: 0,
+    reason: ''
   });
 
   // Admin credentials
@@ -162,17 +194,17 @@ const GitaDistributionPortal = () => {
    // const userDoc = await getDocs(
      // query(collection(db, 'users'), where('username', '==', username))
     //);
-    // Fetch user data directly by UID instead of querying
-    const userDocRef = doc(db, 'users', uid);
+    // Fetch user data directly by UID from teams collection (merged)
+    const userDocRef = doc(db, 'teams', uid);
     const userDocSnap = await getDoc(userDocRef);
     
     if (userDocSnap.exists()) {
       const userData = userDocSnap.data();
-      setCurrentUser({ ...userData, uid: uid });
+      setCurrentUser({ ...userData, uid: uid, teamId: uid });
       setIsLoggedIn(true);
       
       if (userData.role === 'team') {
-        setSelectedTeam(userData.teamId);
+        setSelectedTeam(uid);
       }
     } else {
       alert('User data not found in database');
@@ -291,70 +323,42 @@ const GitaDistributionPortal = () => {
 
   const addTeam = async () => {
     try {
-      // Validate inputs
-      if (!teamForm.name || !teamForm.username || !teamForm.password || !teamForm.contact) {
+      if (!teamForm.name || !teamForm.password || !teamForm.contact) {
         alert('Please fill in all required fields');
         return;
       }
 
-      console.log('Starting team creation process...');
+      const email = `${teamForm.username.toLowerCase().replace(/\s+/g, '')}@gmail.com`;
       
-      // Step 1: Generate unique team ID first
-      const teamId = `team_${Date.now()}`;
-      console.log('Generated teamId:', teamId);
-
-      // Step 2: Create Firebase Authentication user
-      const email = `${teamForm.username}@gmail.com`;
-      console.log('Creating auth user with email:', email);
-      
+      // Create auth user
       const userCredential = await createUserWithEmailAndPassword(auth, email, teamForm.password);
-      const newUserUid = userCredential.user.uid;
-      console.log('Auth user created with UID:', newUserUid);
+      const uid = userCredential.user.uid;
 
-      // Step 3: Create user document FIRST (this is crucial for Firestore rules)
-      console.log('Creating user document...');
-      await setDoc(doc(db, 'users', newUserUid), {
-        username: teamForm.username,
+      // Create single team document (merged teams and users collections)
+      await setDoc(doc(db, 'teams', uid), {
+        id: uid,
         name: teamForm.name,
-        email: email,
-        role: 'team',
-        teamId: teamId,
+        username: teamForm.username, // Username is the team name
         contact: teamForm.contact,
+        role: 'team',
+        email: email,
+        inventory: {
+          gitaTelugu: parseInt(teamForm.inventory?.gitaTelugu) || 0,
+          gitaEnglish: parseInt(teamForm.inventory?.gitaEnglish) || 0,
+          bookletTelugu: parseInt(teamForm.inventory?.bookletTelugu) || 0,
+          bookletEnglish: parseInt(teamForm.inventory?.bookletEnglish) || 0,
+          calendar: parseInt(teamForm.inventory?.calendar) || 0,
+          chikki: parseInt(teamForm.inventory?.chikki) || 0
+        },
         createdAt: new Date().toISOString()
       });
-      console.log('User document created successfully');
-      // Add a small delay to ensure Firestore has fully propagated the write
-      await new Promise(resolve => setTimeout(resolve, 5000));
-      // Step 4: Create team document
-      console.log('Creating team document...');
-      await setDoc(doc(db, 'teams', teamId), {
-        id: teamId,
-        name: teamForm.name,
-        username: teamForm.username,
-        contact: teamForm.contact,
-        setsRemaining: parseInt(teamForm.setsRemaining) || 0,
-        createdAt: new Date().toISOString(),
-        userId: newUserUid
-      });
-      console.log('Team document created successfully');
 
       resetTeamForm();
       setShowModal(false);
-      alert(`Team "${teamForm.name}" added successfully!\nLogin: ${email}\nPassword: ${teamForm.password}`);
+      alert(`Team "${teamForm.name}" added successfully!`);
     } catch (error) {
       console.error('Error adding team:', error);
-      console.error('Error code:', error.code);
-      console.error('Error message:', error.message);
-      
-      if (error.code === 'auth/email-already-in-use') {
-        alert('This username is already taken. Please choose a different username.');
-      } else if (error.code === 'auth/weak-password') {
-        alert('Password should be at least 6 characters long.');
-      } else if (error.code === 'permission-denied') {
-        alert('Permission denied. Please ensure you are logged in as admin and have proper permissions.');
-      } else {
-        alert('Error adding team: ' + error.message);
-      }
+      alert(error.message);
     }
   };
 
@@ -363,8 +367,12 @@ const GitaDistributionPortal = () => {
       const newReq = {
         teamId: currentUser.teamId,
         teamName: currentUser.name,
-        teluguQuantity: parseInt(requirementForm.teluguQuantity) || 0,
-        englishQuantity: parseInt(requirementForm.englishQuantity) || 0,
+        gitaTelugu: parseInt(requirementForm.gitaTelugu) || 0,
+        gitaEnglish: parseInt(requirementForm.gitaEnglish) || 0,
+        bookletTelugu: parseInt(requirementForm.bookletTelugu) || 0,
+        bookletEnglish: parseInt(requirementForm.bookletEnglish) || 0,
+        calendar: parseInt(requirementForm.calendar) || 0,
+        chikki: parseInt(requirementForm.chikki) || 0,
         reason: requirementForm.reason,
         status: 'pending',
         date: new Date().toISOString().split('T')[0],
@@ -373,9 +381,12 @@ const GitaDistributionPortal = () => {
       
       await addDoc(collection(db, 'requirements'), newReq);
       
+      const totalSets = newReq.gitaTelugu + newReq.gitaEnglish + newReq.bookletTelugu + 
+                       newReq.bookletEnglish + newReq.calendar + newReq.chikki;
+      
       setNotifications([...notifications, {
         id: Date.now(),
-        message: `${currentUser.name} raised requirement for ${requirementForm.teluguQuantity} Telugu sets and ${requirementForm.englishQuantity} English sets`,
+        message: `${currentUser.name} raised requirement for ${totalSets} total items`,
         date: new Date().toISOString()
       }]);
       
@@ -386,6 +397,17 @@ const GitaDistributionPortal = () => {
       console.error('Error raising requirement:', error);
       alert('Error raising requirement. Please try again.');
     }
+  };
+
+  // Calculate money difference for a school
+  const calculateMoneyDifference = (school) => {
+    const totalIssuedSets = (school.teluguSetsIssued || 0) + (school.englishSetsIssued || 0);
+    const totalTakenBack = (school.teluguSetsTakenBack || 0) + (school.englishSetsTakenBack || 0);
+    const netIssuedSets = totalIssuedSets - totalTakenBack;
+    const expectedAmount = netIssuedSets * (school.perSetPrice || 250);
+    const actualAmount = school.moneyCollected || 0;
+    
+    return expectedAmount - actualAmount;
   };
 
   const updateTeamSets = async (teamId, newValue) => {
@@ -426,25 +448,110 @@ const GitaDistributionPortal = () => {
       alert('Error approving requirement. Please try again.');
     }
   };
+
+  // Money collection tracking
+  const addMoneyCollection = async (schoolId, paymentData) => {
+    try {
+      const schoolRef = doc(db, 'schools', schoolId);
+      const school = schools.find(s => s.id === schoolId);
+      
+      const newPayment = {
+        id: `payment_${Date.now()}`,
+        amount: parseFloat(paymentData.amount),
+        method: paymentData.method,
+        date: paymentData.date,
+        timestamp: new Date().toISOString()
+      };
+
+      const updatedPayments = [...(school.payments || []), newPayment];
+      const totalCollected = updatedPayments.reduce((sum, p) => sum + p.amount, 0);
+
+      await updateDoc(schoolRef, {
+        payments: updatedPayments,
+        moneyCollected: totalCollected,
+        updates: [...(school.updates || []), {
+          type: 'money_collection',
+          data: newPayment,
+          timestamp: new Date().toISOString(),
+          updatedBy: currentUser.uid
+        }]
+      });
+
+      alert('Money collection recorded successfully!');
+    } catch (error) {
+      console.error('Error recording money collection:', error);
+      alert('Error recording money collection. Please try again.');
+    }
+  };
+
+  // Money settlement management
+  const submitMoneySettlement = async () => {
+    try {
+      const settlementData = {
+        teamId: currentUser.teamId,
+        teamName: currentUser.name,
+        amount: parseFloat(settlementForm.amount),
+        paymentMethod: settlementForm.paymentMethod,
+        date: settlementForm.date,
+        notes: settlementForm.notes,
+        status: 'pending',
+        submittedAt: new Date().toISOString()
+      };
+
+      await addDoc(collection(db, 'moneySettlements'), settlementData);
+      
+      resetSettlementForm();
+      setShowModal(false);
+      alert('Money settlement submitted for approval!');
+    } catch (error) {
+      console.error('Error submitting settlement:', error);
+      alert('Error submitting settlement. Please try again.');
+    }
+  };
+
+  const approveMoneySettlement = async (settlementId) => {
+    try {
+      const settlementRef = doc(db, 'moneySettlements', settlementId);
+      await updateDoc(settlementRef, {
+        status: 'approved',
+        approvedAt: new Date().toISOString(),
+        approvedBy: currentUser.uid
+      });
+      alert('Money settlement approved!');
+    } catch (error) {
+      console.error('Error approving settlement:', error);
+      alert('Error approving settlement. Please try again.');
+    }
+  };
   // Reset forms
   const resetSchoolForm = () => {
     setSchoolForm({
       areaName: '', schoolName: '', announcementStatus: 'Pending',
       teluguSetsDistributed: 0, englishSetsDistributed: 0,
       teluguSetsTakenBack: 0, englishSetsTakenBack: 0,
-      teluguSetsOnHold: 0, englishSetsOnHold: 0,
+      teluguSetsIssued: 0, englishSetsIssued: 0,
       freeSetsGiven: 0,
       moneyCollected: 0, perSetPrice: 250, contactPerson: '',
-      contactNumber: '', email: '', notes: '', date: new Date().toISOString().split('T')[0]
+      contactNumber: '', email: '', notes: '', date: new Date().toISOString().split('T')[0],
+      payments: [], updates: []
     });
   };
 
   const resetTeamForm = () => {
-    setTeamForm({ name: '', username: '', password: '', setsRemaining: 0, contact: '' });
+    setTeamForm({ 
+      name: '', username: '', password: '', contact: '',
+      inventory: { gitaTelugu: 0, gitaEnglish: 0, bookletTelugu: 0, bookletEnglish: 0, calendar: 0, chikki: 0 }
+    });
   };
 
   const resetRequirementForm = () => {
-    setRequirementForm({ teluguQuantity: 0, englishQuantity: 0, reason: '' });
+    setRequirementForm({ 
+      gitaTelugu: 0, gitaEnglish: 0, bookletTelugu: 0, bookletEnglish: 0, calendar: 0, chikki: 0, reason: '' 
+    });
+  };
+
+  const resetSettlementForm = () => {
+    setSettlementForm({ amount: 0, paymentMethod: 'Cash', date: new Date().toISOString().split('T')[0], notes: '' });
   };
 
   // Calculations
@@ -652,7 +759,21 @@ const GitaDistributionPortal = () => {
                 >
                   Requirements
                 </button>
+                <button
+                  onClick={() => setActiveView('settlements')}
+                  className={`px-6 py-3 font-medium ${activeView === 'settlements' ? 'text-orange-600 border-b-2 border-orange-600' : 'text-gray-600 hover:text-orange-600'}`}
+                >
+                  Money Settlements
+                </button>
               </>
+            )}
+            {currentUser.role === 'team' && (
+              <button
+                onClick={() => setActiveView('settlements')}
+                className={`px-6 py-3 font-medium ${activeView === 'settlements' ? 'text-orange-600 border-b-2 border-orange-600' : 'text-gray-600 hover:text-orange-600'}`}
+              >
+                Money Settlement
+              </button>
             )}
           </div>
         </div>
@@ -860,7 +981,7 @@ const GitaDistributionPortal = () => {
                       <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Telugu Sets</th>
                       <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">English Sets</th>
                       <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Money</th>
-                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Settled</th>
+                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Difference</th>
                       <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Actions</th>
                     </tr>
                   </thead>
@@ -887,19 +1008,10 @@ const GitaDistributionPortal = () => {
                         <td className="px-4 py-3 text-sm text-right text-green-700 font-medium">
                           ₹{school.moneyCollected.toLocaleString()}
                         </td>
-                        <td className="px-4 py-3 text-center">
-                          {currentUser.role === 'admin' ? (
-                            <button
-                              onClick={() => toggleMoneySettled(school.id)}
-                              className={`p-1 rounded ${school.moneySettled ? 'text-green-600' : 'text-gray-400'}`}
-                            >
-                              <Check className="w-5 h-5" />
-                            </button>
-                          ) : (
-                            <span className={`text-sm ${school.moneySettled ? 'text-green-600' : 'text-gray-400'}`}>
-                              {school.moneySettled ? 'Yes' : 'No'}
-                            </span>
-                          )}
+                        <td className="px-4 py-3 text-sm text-right">
+                          <span className={`font-medium ${calculateMoneyDifference(school) >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                            ₹{calculateMoneyDifference(school).toLocaleString()}
+                          </span>
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-center space-x-2">
@@ -1036,8 +1148,12 @@ const GitaDistributionPortal = () => {
                   <tr>
                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Team</th>
-                    <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Telugu Qty</th>
-                    <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">English Qty</th>
+                    <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Gita Telugu</th>
+                    <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Gita English</th>
+                    <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Booklet Telugu</th>
+                    <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Booklet English</th>
+                    <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Calendar</th>
+                    <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Chikki</th>
                     <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Total</th>
                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Reason</th>
                     <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Status</th>
@@ -1051,9 +1167,16 @@ const GitaDistributionPortal = () => {
                       <td className="px-4 py-3 text-sm text-gray-900">
                         {teams.find(t => t.id === req.teamId)?.name}
                       </td>
-                      <td className="px-4 py-3 text-sm text-right text-gray-900 font-medium">{req.teluguQuantity}</td>
-                      <td className="px-4 py-3 text-sm text-right text-gray-900 font-medium">{req.englishQuantity}</td>
-                      <td className="px-4 py-3 text-sm text-right text-green-700 font-semibold">{req.teluguQuantity + req.englishQuantity}</td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-900 font-medium">{req.gitaTelugu || 0}</td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-900 font-medium">{req.gitaEnglish || 0}</td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-900 font-medium">{req.bookletTelugu || 0}</td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-900 font-medium">{req.bookletEnglish || 0}</td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-900 font-medium">{req.calendar || 0}</td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-900 font-medium">{req.chikki || 0}</td>
+                      <td className="px-4 py-3 text-sm text-right text-green-700 font-semibold">
+                        {(req.gitaTelugu || 0) + (req.gitaEnglish || 0) + (req.bookletTelugu || 0) + 
+                         (req.bookletEnglish || 0) + (req.calendar || 0) + (req.chikki || 0)}
+                      </td>
                       <td className="px-4 py-3 text-sm text-gray-700">{req.reason}</td>
                       <td className="px-4 py-3 text-center">
                         <span className={`px-3 py-1 text-xs rounded-full ${
@@ -1084,6 +1207,112 @@ const GitaDistributionPortal = () => {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Money Settlements View */}
+        {activeView === 'settlements' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-800">
+                {currentUser.role === 'admin' ? 'Money Settlements' : 'Submit Money Settlement'}
+              </h2>
+              {currentUser.role === 'team' && (
+                <button
+                  onClick={() => {
+                    setModalType('settlement');
+                    resetSettlementForm();
+                    setShowModal(true);
+                  }}
+                  className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <DollarSign className="w-4 h-4" />
+                  <span>Submit Settlement</span>
+                </button>
+              )}
+            </div>
+
+            {currentUser.role === 'admin' ? (
+              <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Team</th>
+                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Amount</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Method</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Status</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {moneySettlements.map(settlement => (
+                      <tr key={settlement.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-sm text-gray-600">{settlement.date}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900">{settlement.teamName}</td>
+                        <td className="px-4 py-3 text-sm text-right text-green-700 font-medium">₹{settlement.amount.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700">{settlement.paymentMethod}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`px-3 py-1 text-xs rounded-full ${
+                            settlement.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                          }`}>
+                            {settlement.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {settlement.status === 'pending' && (
+                            <button
+                              onClick={() => approveMoneySettlement(settlement.id)}
+                              className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors"
+                            >
+                              Approve
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                
+                {moneySettlements.length === 0 && (
+                  <div className="text-center py-12 text-gray-500">
+                    <DollarSign className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>No money settlements submitted</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">Your Settlement History</h3>
+                <div className="space-y-3">
+                  {moneySettlements.filter(s => s.teamId === currentUser.teamId).map(settlement => (
+                    <div key={settlement.id} className="border rounded-lg p-4">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <p className="font-medium text-gray-800">₹{settlement.amount.toLocaleString()}</p>
+                          <p className="text-sm text-gray-600">{settlement.paymentMethod} • {settlement.date}</p>
+                        </div>
+                        <span className={`px-3 py-1 text-xs rounded-full ${
+                          settlement.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                        }`}>
+                          {settlement.status}
+                        </span>
+                      </div>
+                      {settlement.notes && (
+                        <p className="text-sm text-gray-600 mt-2">{settlement.notes}</p>
+                      )}
+                    </div>
+                  ))}
+                  
+                  {moneySettlements.filter(s => s.teamId === currentUser.teamId).length === 0 && (
+                    <div className="text-center py-8 text-gray-500">
+                      <DollarSign className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p>No settlements submitted yet</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1126,6 +1355,7 @@ const GitaDistributionPortal = () => {
                 {modalType === 'team' && 'Add Team'}
                 {modalType === 'requirement' && 'Raise Requirement'}
                 {modalType === 'viewSchool' && 'School Details'}
+                {modalType === 'settlement' && 'Submit Money Settlement'}
               </h3>
               <button
                 onClick={() => {
@@ -1239,21 +1469,21 @@ const GitaDistributionPortal = () => {
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Telugu Sets On Hold</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Telugu Sets Issued</label>
                       <input
                         type="number"
-                        value={schoolForm.teluguSetsOnHold}
-                        onChange={(e) => setSchoolForm({...schoolForm, teluguSetsOnHold: parseInt(e.target.value) || 0})}
+                        value={schoolForm.teluguSetsIssued}
+                        onChange={(e) => setSchoolForm({...schoolForm, teluguSetsIssued: parseInt(e.target.value) || 0})}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
                       />
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">English Sets On Hold</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">English Sets Issued</label>
                       <input
                         type="number"
-                        value={schoolForm.englishSetsOnHold}
-                        onChange={(e) => setSchoolForm({...schoolForm, englishSetsOnHold: parseInt(e.target.value) || 0})}
+                        value={schoolForm.englishSetsIssued}
+                        onChange={(e) => setSchoolForm({...schoolForm, englishSetsIssued: parseInt(e.target.value) || 0})}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
                       />
                     </div>
@@ -1391,21 +1621,21 @@ const GitaDistributionPortal = () => {
                     
                     
                     <div>
-                      <p className="text-sm text-gray-600">Telugu Sets On Hold</p>
-                      <p className="font-medium text-blue-600">{editingItem.teluguSetsOnHold}</p>
+                      <p className="text-sm text-gray-600">Telugu Sets Issued</p>
+                      <p className="font-medium text-blue-600">{editingItem.teluguSetsIssued || 0}</p>
                     </div>
                     
                     <div>
-                      <p className="text-sm text-gray-600">English Sets On Hold</p>
-                      <p className="font-medium text-blue-600">{editingItem.englishSetsOnHold}</p>
+                      <p className="text-sm text-gray-600">English Sets Issued</p>
+                      <p className="font-medium text-blue-600">{editingItem.englishSetsIssued || 0}</p>
                     </div>
                     <div>
                       <p className="text-sm text-gray-600">Total Sets Taken Back</p>
                       <p className="font-medium text-orange-700 font-semibold">{editingItem.teluguSetsTakenBack + editingItem.englishSetsTakenBack}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-600">Total Sets On Hold</p>
-                      <p className="font-medium text-blue-700 font-semibold">{editingItem.teluguSetsOnHold + editingItem.englishSetsOnHold}</p>
+                      <p className="text-sm text-gray-600">Total Sets Issued</p>
+                      <p className="font-medium text-blue-700 font-semibold">{(editingItem.teluguSetsIssued || 0) + (editingItem.englishSetsIssued || 0)}</p>
                     </div>
                     
                     <div>
@@ -1495,14 +1725,61 @@ const GitaDistributionPortal = () => {
                     />
                   </div>
                   
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Initial Sets Remaining</label>
-                    <input
-                      type="number"
-                      value={teamForm.setsRemaining}
-                      onChange={(e) => setTeamForm({...teamForm, setsRemaining: parseInt(e.target.value) || 0})}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                    />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Gita Telugu</label>
+                      <input
+                        type="number"
+                        value={teamForm.inventory.gitaTelugu}
+                        onChange={(e) => setTeamForm({...teamForm, inventory: {...teamForm.inventory, gitaTelugu: parseInt(e.target.value) || 0}})}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Gita English</label>
+                      <input
+                        type="number"
+                        value={teamForm.inventory.gitaEnglish}
+                        onChange={(e) => setTeamForm({...teamForm, inventory: {...teamForm.inventory, gitaEnglish: parseInt(e.target.value) || 0}})}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Booklet Telugu</label>
+                      <input
+                        type="number"
+                        value={teamForm.inventory.bookletTelugu}
+                        onChange={(e) => setTeamForm({...teamForm, inventory: {...teamForm.inventory, bookletTelugu: parseInt(e.target.value) || 0}})}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Booklet English</label>
+                      <input
+                        type="number"
+                        value={teamForm.inventory.bookletEnglish}
+                        onChange={(e) => setTeamForm({...teamForm, inventory: {...teamForm.inventory, bookletEnglish: parseInt(e.target.value) || 0}})}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Calendar</label>
+                      <input
+                        type="number"
+                        value={teamForm.inventory.calendar}
+                        onChange={(e) => setTeamForm({...teamForm, inventory: {...teamForm.inventory, calendar: parseInt(e.target.value) || 0}})}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Chikki</label>
+                      <input
+                        type="number"
+                        value={teamForm.inventory.chikki}
+                        onChange={(e) => setTeamForm({...teamForm, inventory: {...teamForm.inventory, chikki: parseInt(e.target.value) || 0}})}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      />
+                    </div>
                   </div>
                   
                   <div className="flex justify-end space-x-3 pt-4">
@@ -1525,34 +1802,68 @@ const GitaDistributionPortal = () => {
               {/* Requirement Form */}
               {modalType === 'requirement' && (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Telugu Sets Needed *</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Gita Telugu</label>
                       <input
                         type="number"
-                        value={requirementForm.teluguQuantity}
-                        onChange={(e) => setRequirementForm({...requirementForm, teluguQuantity: parseInt(e.target.value) || 0})}
+                        value={requirementForm.gitaTelugu}
+                        onChange={(e) => setRequirementForm({...requirementForm, gitaTelugu: parseInt(e.target.value) || 0})}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                        required
                       />
                     </div>
-                    
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">English Sets Needed *</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Gita English</label>
                       <input
                         type="number"
-                        value={requirementForm.englishQuantity}
-                        onChange={(e) => setRequirementForm({...requirementForm, englishQuantity: parseInt(e.target.value) || 0})}
+                        value={requirementForm.gitaEnglish}
+                        onChange={(e) => setRequirementForm({...requirementForm, gitaEnglish: parseInt(e.target.value) || 0})}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Booklet Telugu</label>
+                      <input
+                        type="number"
+                        value={requirementForm.bookletTelugu}
+                        onChange={(e) => setRequirementForm({...requirementForm, bookletTelugu: parseInt(e.target.value) || 0})}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Booklet English</label>
+                      <input
+                        type="number"
+                        value={requirementForm.bookletEnglish}
+                        onChange={(e) => setRequirementForm({...requirementForm, bookletEnglish: parseInt(e.target.value) || 0})}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Calendar</label>
+                      <input
+                        type="number"
+                        value={requirementForm.calendar}
+                        onChange={(e) => setRequirementForm({...requirementForm, calendar: parseInt(e.target.value) || 0})}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Chikki</label>
+                      <input
+                        type="number"
+                        value={requirementForm.chikki}
+                        onChange={(e) => setRequirementForm({...requirementForm, chikki: parseInt(e.target.value) || 0})}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
                       />
                     </div>
                   </div>
                   
                   <div className="bg-blue-50 p-3 rounded-lg">
                     <p className="text-sm text-blue-800">
-                      <span className="font-semibold">Total Sets Required: </span>
-                      {requirementForm.teluguQuantity + requirementForm.englishQuantity}
+                      <span className="font-semibold">Total Items Required: </span>
+                      {requirementForm.gitaTelugu + requirementForm.gitaEnglish + requirementForm.bookletTelugu + 
+                       requirementForm.bookletEnglish + requirementForm.calendar + requirementForm.chikki}
                     </p>
                   </div>
                   
@@ -1580,6 +1891,73 @@ const GitaDistributionPortal = () => {
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                     >
                       Raise Requirement
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Settlement Form */}
+              {modalType === 'settlement' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Amount (₹) *</label>
+                    <input
+                      type="number"
+                      value={settlementForm.amount}
+                      onChange={(e) => setSettlementForm({...settlementForm, amount: parseFloat(e.target.value) || 0})}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method *</label>
+                    <select
+                      value={settlementForm.paymentMethod}
+                      onChange={(e) => setSettlementForm({...settlementForm, paymentMethod: e.target.value})}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      required
+                    >
+                      <option value="Cash">Cash</option>
+                      <option value="UPI">UPI</option>
+                      <option value="Bank Transfer">Bank Transfer</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Date *</label>
+                    <input
+                      type="date"
+                      value={settlementForm.date}
+                      onChange={(e) => setSettlementForm({...settlementForm, date: e.target.value})}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                    <textarea
+                      value={settlementForm.notes}
+                      onChange={(e) => setSettlementForm({...settlementForm, notes: e.target.value})}
+                      rows="3"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      placeholder="Additional notes about the settlement..."
+                    ></textarea>
+                  </div>
+                  
+                  <div className="flex justify-end space-x-3 pt-4">
+                    <button
+                      onClick={() => setShowModal(false)}
+                      className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={submitMoneySettlement}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      Submit Settlement
                     </button>
                   </div>
                 </div>
