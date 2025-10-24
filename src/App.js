@@ -14,8 +14,10 @@ import {
   where,
   onSnapshot 
 } from 'firebase/firestore';
+import { initializeApp } from 'firebase/app';
 import { 
-  signInWithEmailAndPassword, 
+  signInWithEmailAndPassword,
+  getAuth,
   signOut,
   createUserWithEmailAndPassword 
 } from 'firebase/auth';
@@ -321,7 +323,7 @@ const GitaDistributionPortal = () => {
   }
 };
 
-  const addTeam = async () => {
+ const addTeam = async () => {
   try {
     if (!teamForm.name || !teamForm.username || !teamForm.password || !teamForm.contact) {
       alert('Please fill in all required fields (Name, Username, Password, Contact)');
@@ -333,25 +335,28 @@ const GitaDistributionPortal = () => {
     console.log('Current user:', currentUser);
     console.log('Current user email:', auth.currentUser?.email);
     console.log('Creating team with email:', email);
-    console.log('Team form data:', teamForm);
     console.log('=====================');
     
-    // IMPORTANT: Save the current admin user before creating new user
-    const adminUser = auth.currentUser;
+    // Create a SECONDARY Firebase app instance for creating the user
+    // This won't affect the current admin session
+    const secondaryApp = initializeApp(firebaseConfig, 'Secondary');
+    const secondaryAuth = getAuth(secondaryApp);
     
-    // Create auth user (this will sign in as the new user)
-    const userCredential = await createUserWithEmailAndPassword(auth, email, teamForm.password);
+    // Create user with the secondary auth instance
+    const userCredential = await createUserWithEmailAndPassword(
+      secondaryAuth, 
+      email, 
+      teamForm.password
+    );
     const uid = userCredential.user.uid;
     
     console.log('Auth user created with UID:', uid);
     
-    // IMMEDIATELY sign out the new user
-    await signOut(auth);
+    // Delete the secondary app to clean up
+    await secondaryApp.delete();
     
-    // Re-authenticate as admin
-    //await signInWithEmailAndPassword(auth, adminUser.email, 'YOUR_ADMIN_PASSWORD');
-    // OR if you have the admin credentials stored:
-    await signInWithEmailAndPassword(auth, 'admin@gmail.com', 'admin123');
+    // Now the admin is still logged in on the primary auth instance
+    console.log('Admin still logged in:', auth.currentUser?.email);
     
     // Prepare team data
     const teamData = {
@@ -373,23 +378,23 @@ const GitaDistributionPortal = () => {
       createdAt: new Date().toISOString()
     };
     
-    console.log('Attempting to write team data:', teamData);
-    // Now write as admin
+    console.log('Attempting to write team data as admin:', teamData);
+    
+    // Write to Firestore as admin (admin is still authenticated)
     await setDoc(doc(db, 'teams', uid), teamData);
     
     console.log('Team document created successfully');
     resetTeamForm();
     setShowModal(false);
     alert(`Team "${teamForm.name}" added successfully!`);
+    
   } catch (error) {
     console.error('=== ERROR ADDING TEAM ===');
     console.error('Error object:', error);
     console.error('Error code:', error.code);
     console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
     console.error('========================');
     
-    // More helpful error messages
     if (error.code === 'auth/email-already-in-use') {
       alert('This username is already taken. Please choose a different username.');
     } else if (error.code === 'auth/weak-password') {
@@ -401,7 +406,6 @@ const GitaDistributionPortal = () => {
     }
   }
 };
-
   const raiseRequirement = async () => {
     try {
       const newReq = {
