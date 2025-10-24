@@ -14,7 +14,7 @@ import {
   where,
   onSnapshot 
 } from 'firebase/firestore';
-import { initializeApp } from 'firebase/app';
+import { initializeApp, deleteApp } from 'firebase/app';
 import { 
   signInWithEmailAndPassword,
   getAuth,
@@ -353,7 +353,7 @@ const GitaDistributionPortal = () => {
     console.log('Auth user created with UID:', uid);
     
     // Delete the secondary app to clean up
-    await secondaryApp.delete();
+    await deleteApp(secondaryApp);
     
     // Now the admin is still logged in on the primary auth instance
     console.log('Admin still logged in:', auth.currentUser?.email);
