@@ -1,16 +1,69 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Only authenticated users can read/write
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+    
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/teams/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/teams/$(request.auth.uid)).data.role == 'admin';
     }
     
-    // Teams can only access their own data
+    // Helper function to check if user is a team member
+    function isTeamMember() {
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/teams/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/teams/$(request.auth.uid)).data.role == 'team';
+    }
+    
+    // Helper function to get user's teamId (which is their own UID in merged structure)
+    function getUserTeamId() {
+      return request.auth.uid;
+    }
+    
+    // Teams collection (merged with users)
+    match /teams/{teamId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if isAdmin();
+      // Team members can read their own team data
+      allow read: if request.auth != null && request.auth.uid == teamId;
+    }
+    
+    // Schools collection
     match /schools/{schoolId} {
-      allow read, write: if request.auth != null && 
-        (request.auth.token.role == 'admin' || 
-         resource.data.teamId == request.auth.uid);
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && 
+                      (isAdmin() || 
+                       (isTeamMember() && request.resource.data.teamId == getUserTeamId()));
+      allow update: if request.auth != null && 
+                      (isAdmin() || 
+                       (isTeamMember() && resource.data.teamId == getUserTeamId()));
+      allow delete: if request.auth != null && 
+                      (isAdmin() || 
+                       (isTeamMember() && resource.data.teamId == getUserTeamId()));
+    }
+    
+    // Requirements collection
+    match /requirements/{reqId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && isTeamMember();
+      allow update, delete: if isAdmin();
+    }
+    
+    // Money Settlements collection
+    match /moneySettlements/{settlementId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && isTeamMember();
+      allow update: if isAdmin();
+      // Team members can read their own settlements
+      allow read: if request.auth != null && 
+                    isTeamMember() && 
+                    resource.data.teamId == getUserTeamId();
+    }
+    
+    // Notifications collection
+    match /notifications/{notifId} {
+      allow read, write: if isAdmin();
     }
   }
 }
