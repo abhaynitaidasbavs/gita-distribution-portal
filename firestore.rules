@@ -5,20 +5,20 @@ service cloud.firestore {
     // Helper function to check if user is admin
     function isAdmin() {
       return request.auth != null && 
-             exists(/databases/$(database)/documents/teams/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/teams/$(request.auth.uid)).data.role == 'admin';
+             request.auth.email == 'admin@gmail.com';
     }
     
     // Helper function to check if user is a team member
     function isTeamMember() {
       return request.auth != null && 
+             request.auth.email != 'admin@gmail.com' &&
              exists(/databases/$(database)/documents/teams/$(request.auth.uid)) &&
              get(/databases/$(database)/documents/teams/$(request.auth.uid)).data.role == 'team';
     }
     
     // Helper function to get user's teamId (which is their own UID in merged structure)
     function getUserTeamId() {
-      return request.auth.uid;
+      return request.auth.email == 'admin@gmail.com' ? 'admin' : request.auth.uid;
     }
     
     // Teams collection (merged with users)
