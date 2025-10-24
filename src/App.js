@@ -321,47 +321,61 @@ const GitaDistributionPortal = () => {
   }
 };
 
-  const addTeam = async () => {
-    try {
-      if (!teamForm.name || !teamForm.password || !teamForm.contact) {
-        alert('Please fill in all required fields');
-        return;
-      }
-
-      const email = `${teamForm.username.toLowerCase().replace(/\s+/g, '')}@gmail.com`;
-      
-      // Create auth user
-      const userCredential = await createUserWithEmailAndPassword(auth, email, teamForm.password);
-      const uid = userCredential.user.uid;
-
-      // Create single team document (merged teams and users collections)
-      await setDoc(doc(db, 'teams', uid), {
-        id: uid,
-        name: teamForm.name,
-        username: teamForm.username, // Username is the team name
-        contact: teamForm.contact,
-        role: 'team',
-        email: email,
-        setsRemaining: 0, // Initialize setsRemaining
-        inventory: {
-          gitaTelugu: parseInt(teamForm.inventory?.gitaTelugu) || 0,
-          gitaEnglish: parseInt(teamForm.inventory?.gitaEnglish) || 0,
-          bookletTelugu: parseInt(teamForm.inventory?.bookletTelugu) || 0,
-          bookletEnglish: parseInt(teamForm.inventory?.bookletEnglish) || 0,
-          calendar: parseInt(teamForm.inventory?.calendar) || 0,
-          chikki: parseInt(teamForm.inventory?.chikki) || 0
-        },
-        createdAt: new Date().toISOString()
-      });
-
-      resetTeamForm();
-      setShowModal(false);
-      alert(`Team "${teamForm.name}" added successfully!`);
-    } catch (error) {
-      console.error('Error adding team:', error);
-      alert(error.message);
+const addTeam = async () => {
+  try {
+    if (!teamForm.name || !teamForm.username || !teamForm.password || !teamForm.contact) {
+      alert('Please fill in all required fields (Name, Username, Password, Contact)');
+      return;
     }
-  };
+
+    const email = `${teamForm.username.toLowerCase().trim().replace(/\s+/g, '')}@gmail.com`;
+    
+    console.log('Creating team with email:', email); // Debug log
+    
+    // Create auth user
+    const userCredential = await createUserWithEmailAndPassword(auth, email, teamForm.password);
+    const uid = userCredential.user.uid;
+
+    // Create single team document (merged teams and users collections)
+    await setDoc(doc(db, 'teams', uid), {
+      id: uid,
+      name: teamForm.name,
+      username: teamForm.username,
+      contact: teamForm.contact,
+      role: 'team',
+      email: email,
+      setsRemaining: 0, // Initialize setsRemaining
+      inventory: {
+        gitaTelugu: parseInt(teamForm.inventory?.gitaTelugu) || 0,
+        gitaEnglish: parseInt(teamForm.inventory?.gitaEnglish) || 0,
+        bookletTelugu: parseInt(teamForm.inventory?.bookletTelugu) || 0,
+        bookletEnglish: parseInt(teamForm.inventory?.bookletEnglish) || 0,
+        calendar: parseInt(teamForm.inventory?.calendar) || 0,
+        chikki: parseInt(teamForm.inventory?.chikki) || 0
+      },
+      createdAt: new Date().toISOString()
+    });
+
+    resetTeamForm();
+    setShowModal(false);
+    alert(`Team "${teamForm.name}" added successfully!`);
+  } catch (error) {
+    console.error('Error adding team:', error);
+    console.error('Error code:', error.code);
+    console.error('Error message:', error.message);
+    
+    // More helpful error messages
+    if (error.code === 'auth/email-already-in-use') {
+      alert('This username is already taken. Please choose a different username.');
+    } else if (error.code === 'auth/weak-password') {
+      alert('Password should be at least 6 characters long.');
+    } else if (error.code === 'permission-denied') {
+      alert('Permission denied. Make sure you are logged in as admin.');
+    } else {
+      alert(`Error adding team: ${error.message}`);
+    }
+  }
+};
 
   const raiseRequirement = async () => {
     try {
