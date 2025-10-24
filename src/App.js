@@ -342,6 +342,7 @@ const GitaDistributionPortal = () => {
         contact: teamForm.contact,
         role: 'team',
         email: email,
+        setsRemaining: 0, // Initialize setsRemaining
         inventory: {
           gitaTelugu: parseInt(teamForm.inventory?.gitaTelugu) || 0,
           gitaEnglish: parseInt(teamForm.inventory?.gitaEnglish) || 0,
