@@ -1,4 +1,4 @@
-import { db, auth } from './firebase';
+import { db, auth, firebaseConfig } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
 import { 
@@ -23,7 +23,6 @@ import {
 } from 'firebase/auth';
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Download, Users, BookOpen, DollarSign, Package, Bell, Edit2, Trash2, Eye, Filter, X, Check, AlertCircle, LogOut, Save } from 'lucide-react';
-import { auth, db, firebaseConfig } from './firebaseConfig';
 
 onAuthStateChanged(auth, (user) => {
   if (user) {
