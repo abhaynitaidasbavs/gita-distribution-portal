@@ -322,77 +322,85 @@ const GitaDistributionPortal = () => {
 };
 
   const addTeam = async () => {
-    try {
-      if (!teamForm.name || !teamForm.username || !teamForm.password || !teamForm.contact) {
-        alert('Please fill in all required fields (Name, Username, Password, Contact)');
-        return;
-      }
-
-      const email = `${teamForm.username.toLowerCase().trim().replace(/\s+/g, '')}@gmail.com`;
-      
-      console.log('=== ADD TEAM DEBUG ===');
-      console.log('Current user:', currentUser);
-      console.log('Current user email:', auth.currentUser?.email);
-      console.log('Creating team with email:', email);
-      console.log('Team form data:', teamForm);
-      console.log('=====================');
-      
-      // Create auth user
-      const userCredential = await createUserWithEmailAndPassword(auth, email, teamForm.password);
-      const uid = userCredential.user.uid;
-      
-      console.log('Auth user created with UID:', uid);
-
-      // Prepare team data
-      const teamData = {
-        id: uid,
-        name: teamForm.name,
-        username: teamForm.username,
-        contact: teamForm.contact,
-        role: 'team',
-        email: email,
-        setsRemaining: 0,
-        inventory: {
-          gitaTelugu: parseInt(teamForm.inventory?.gitaTelugu) || 0,
-          gitaEnglish: parseInt(teamForm.inventory?.gitaEnglish) || 0,
-          bookletTelugu: parseInt(teamForm.inventory?.bookletTelugu) || 0,
-          bookletEnglish: parseInt(teamForm.inventory?.bookletEnglish) || 0,
-          calendar: parseInt(teamForm.inventory?.calendar) || 0,
-          chikki: parseInt(teamForm.inventory?.chikki) || 0
-        },
-        createdAt: new Date().toISOString()
-      };
-      
-      console.log('Attempting to write team data:', teamData);
-
-      // Create single team document (merged teams and users collections)
-      await setDoc(doc(db, 'teams', uid), teamData);
-      
-      console.log('Team document created successfully');
-
-      resetTeamForm();
-      setShowModal(false);
-      alert(`Team "${teamForm.name}" added successfully!`);
-    } catch (error) {
-      console.error('=== ERROR ADDING TEAM ===');
-      console.error('Error object:', error);
-      console.error('Error code:', error.code);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      console.error('========================');
-      
-      // More helpful error messages
-      if (error.code === 'auth/email-already-in-use') {
-        alert('This username is already taken. Please choose a different username.');
-      } else if (error.code === 'auth/weak-password') {
-        alert('Password should be at least 6 characters long.');
-      } else if (error.code === 'permission-denied' || error.code === 'PERMISSION_DENIED') {
-        alert('Permission denied. Make sure you are logged in as admin with email: admin@gmail.com');
-      } else {
-        alert(`Error adding team: ${error.message}`);
-      }
+  try {
+    if (!teamForm.name || !teamForm.username || !teamForm.password || !teamForm.contact) {
+      alert('Please fill in all required fields (Name, Username, Password, Contact)');
+      return;
     }
-  };
+    const email = `${teamForm.username.toLowerCase().trim().replace(/\s+/g, '')}@gmail.com`;
+    
+    console.log('=== ADD TEAM DEBUG ===');
+    console.log('Current user:', currentUser);
+    console.log('Current user email:', auth.currentUser?.email);
+    console.log('Creating team with email:', email);
+    console.log('Team form data:', teamForm);
+    console.log('=====================');
+    
+    // IMPORTANT: Save the current admin user before creating new user
+    const adminUser = auth.currentUser;
+    
+    // Create auth user (this will sign in as the new user)
+    const userCredential = await createUserWithEmailAndPassword(auth, email, teamForm.password);
+    const uid = userCredential.user.uid;
+    
+    console.log('Auth user created with UID:', uid);
+    
+    // IMMEDIATELY sign out the new user
+    await signOut(auth);
+    
+    // Re-authenticate as admin
+    //await signInWithEmailAndPassword(auth, adminUser.email, 'YOUR_ADMIN_PASSWORD');
+    // OR if you have the admin credentials stored:
+    await signInWithEmailAndPassword(auth, 'admin@gmail.com', 'admin123');
+    
+    // Prepare team data
+    const teamData = {
+      id: uid,
+      name: teamForm.name,
+      username: teamForm.username,
+      contact: teamForm.contact,
+      role: 'team',
+      email: email,
+      setsRemaining: 0,
+      inventory: {
+        gitaTelugu: parseInt(teamForm.inventory?.gitaTelugu) || 0,
+        gitaEnglish: parseInt(teamForm.inventory?.gitaEnglish) || 0,
+        bookletTelugu: parseInt(teamForm.inventory?.bookletTelugu) || 0,
+        bookletEnglish: parseInt(teamForm.inventory?.bookletEnglish) || 0,
+        calendar: parseInt(teamForm.inventory?.calendar) || 0,
+        chikki: parseInt(teamForm.inventory?.chikki) || 0
+      },
+      createdAt: new Date().toISOString()
+    };
+    
+    console.log('Attempting to write team data:', teamData);
+    // Now write as admin
+    await setDoc(doc(db, 'teams', uid), teamData);
+    
+    console.log('Team document created successfully');
+    resetTeamForm();
+    setShowModal(false);
+    alert(`Team "${teamForm.name}" added successfully!`);
+  } catch (error) {
+    console.error('=== ERROR ADDING TEAM ===');
+    console.error('Error object:', error);
+    console.error('Error code:', error.code);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    console.error('========================');
+    
+    // More helpful error messages
+    if (error.code === 'auth/email-already-in-use') {
+      alert('This username is already taken. Please choose a different username.');
+    } else if (error.code === 'auth/weak-password') {
+      alert('Password should be at least 6 characters long.');
+    } else if (error.code === 'permission-denied' || error.code === 'PERMISSION_DENIED') {
+      alert('Permission denied. Make sure you are logged in as admin with email: admin@gmail.com');
+    } else {
+      alert(`Error adding team: ${error.message}`);
+    }
+  }
+};
 
   const raiseRequirement = async () => {
     try {
