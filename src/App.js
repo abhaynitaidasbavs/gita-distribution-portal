@@ -296,7 +296,7 @@ const GitaDistributionPortal = () => {
         setsRemaining: team.setsRemaining - netDistributed
 });
     }
-    
+    }
     resetSchoolForm();
     setShowModal(false);
     alert('School added successfully!');
