@@ -352,11 +352,19 @@ const GitaDistributionPortal = () => {
     
     console.log('Auth user created with UID:', uid);
     
-    // Delete the secondary app to clean up
-    await deleteApp(secondaryApp);
+   // Clean up secondary app
+    try {
+      await deleteApp(secondaryApp);
+    } catch (e) {
+      console.log('Could not delete secondary app:', e);
+    }
     
-    // Now the admin is still logged in on the primary auth instance
-    console.log('Admin still logged in:', auth.currentUser?.email);
+    // Wait a moment to ensure auth state is stable
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    console.log('Admin email after:', auth.currentUser?.email);
+    console.log('Admin UID:', auth.currentUser?.uid);
+    
     
     // Prepare team data
     const teamData = {
@@ -377,7 +385,12 @@ const GitaDistributionPortal = () => {
       },
       createdAt: new Date().toISOString()
     };
-    
+    console.log('=== FIRESTORE WRITE DEBUG ===');
+    console.log('Current auth user:', auth.currentUser);
+    console.log('Current auth email:', auth.currentUser?.email);
+    console.log('Team data to write:', teamData);
+    console.log('Writing to path: teams/' + uid);
+    console.log('============================');
     console.log('Attempting to write team data as admin:', teamData);
     
     // Write to Firestore as admin (admin is still authenticated)
