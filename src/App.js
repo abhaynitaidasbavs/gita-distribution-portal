@@ -243,6 +243,17 @@ const GitaDistributionPortal = () => {
   // CRUD operations
   const addSchool = async () => {
     try {
+     console.log('=== SCHOOL CREATION DEBUG ===');
+    console.log('Current user:', auth.currentUser);
+    console.log('Current user UID:', auth.currentUser?.uid);
+    console.log('Current user email:', auth.currentUser?.email);
+    
+    // Check if team document exists
+    const teamDocRef = doc(db, 'teams', auth.currentUser.uid);
+    const teamDocSnap = await getDoc(teamDocRef);
+    console.log('Team document exists:', teamDocSnap.exists());
+    if (teamDocSnap.exists()) {
+      console.log('Team document data:', teamDocSnap.data()); 
     let teamId;
     
     // Determine teamId based on user role
