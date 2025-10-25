@@ -265,7 +265,7 @@ const GitaDistributionPortal = () => {
       }
     } else {
       // For team users, get teamId from currentUser
-      teamId = auth.currentUser.teamId;
+      teamId = currentUser.teamId;
       if (!teamId) {
         alert('Team ID not found. Please contact administrator.');
         return;
