@@ -2,68 +2,79 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper function to check if user is admin
-    function isAdmin() {
-      return request.auth != null && 
-             request.auth.email == 'admin@gmail.com';
-    }
-    
-    // Helper function to check if user is a team member
-    function isTeamMember() {
-      return request.auth != null && 
-             request.auth.email != 'admin@gmail.com' &&
-             exists(/databases/$(database)/documents/teams/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/teams/$(request.auth.uid)).data.role == 'team';
-    }
-    
-    // Helper function to get user's teamId (which is their own UID in merged structure)
-    function getUserTeamId() {
-      return request.auth.email == 'admin@gmail.com' ? 'admin' : request.auth.uid;
-    }
-    
-    // Teams collection (merged with users)
+    // Teams collection
     match /teams/{teamId} {
+      // Anyone authenticated can read teams
       allow read: if request.auth != null;
-      allow create, update, delete: if isAdmin();
-      // Team members can read their own team data
-      allow read: if request.auth != null && request.auth.uid == teamId;
+      
+      // Only admin can create, update, delete teams
+      allow create, update, delete: if request.auth != null && 
+                                        request.auth.token.email == 'admin@gmail.com';
+      // Team members can update
+      allow update: if request.auth != null && 
+                              request.auth.token.email != 'admin@gmail.com' &&
+                              exists(/databases/$(database)/documents/teams/$(request.auth.uid)) &&
+                              get(/databases/$(database)/documents/teams/$(request.auth.uid)).data.role == 'team' &&
+                              resource.data.teamId == request.auth.uid;
     }
     
     // Schools collection
     match /schools/{schoolId} {
       allow read: if request.auth != null;
+      
+      // Admin can do everything
+      allow create, update, delete: if request.auth != null && 
+                                       request.auth.token.email == 'admin@gmail.com';
+      
+      // Team members can create schools with their own teamId
       allow create: if request.auth != null && 
-                      (isAdmin() || 
-                       (isTeamMember() && request.resource.data.teamId == getUserTeamId()));
-      allow update: if request.auth != null && 
-                      (isAdmin() || 
-                       (isTeamMember() && resource.data.teamId == getUserTeamId()));
-      allow delete: if request.auth != null && 
-                      (isAdmin() || 
-                       (isTeamMember() && resource.data.teamId == getUserTeamId()));
+                      request.auth.token.email != 'admin@gmail.com' &&
+                      exists(/databases/$(database)/documents/teams/$(request.auth.uid)) &&
+                      get(/databases/$(database)/documents/teams/$(request.auth.uid)).data.role == 'team' &&
+                      request.resource.data.teamId == request.auth.uid;
+      
+      // Team members can update/delete their own schools
+      allow update, delete: if request.auth != null && 
+                              request.auth.token.email != 'admin@gmail.com' &&
+                              exists(/databases/$(database)/documents/teams/$(request.auth.uid)) &&
+                              get(/databases/$(database)/documents/teams/$(request.auth.uid)).data.role == 'team' &&
+                              resource.data.teamId == request.auth.uid;
     }
     
     // Requirements collection
     match /requirements/{reqId} {
       allow read: if request.auth != null;
-      allow create: if request.auth != null && isTeamMember();
-      allow update, delete: if isAdmin();
+      
+      // Team members can create
+      allow create: if request.auth != null && 
+                      request.auth.token.email != 'admin@gmail.com' &&
+                      exists(/databases/$(database)/documents/teams/$(request.auth.uid)) &&
+                      get(/databases/$(database)/documents/teams/$(request.auth.uid)).data.role == 'team';
+      
+      // Only admin can update/delete
+      allow update, delete: if request.auth != null && 
+                              request.auth.token.email == 'admin@gmail.com';
     }
     
     // Money Settlements collection
     match /moneySettlements/{settlementId} {
       allow read: if request.auth != null;
-      allow create: if request.auth != null && isTeamMember();
-      allow update: if isAdmin();
-      // Team members can read their own settlements
-      allow read: if request.auth != null && 
-                    isTeamMember() && 
-                    resource.data.teamId == getUserTeamId();
+      
+      // Team members can create
+      allow create: if request.auth != null && 
+                      request.auth.token.email != 'admin@gmail.com' &&
+                      exists(/databases/$(database)/documents/teams/$(request.auth.uid)) &&
+                      get(/databases/$(database)/documents/teams/$(request.auth.uid)).data.role == 'team';
+      
+      // Admin can update
+      allow update: if request.auth != null && 
+                      request.auth.token.email == 'admin@gmail.com';
     }
     
     // Notifications collection
     match /notifications/{notifId} {
-      allow read, write: if isAdmin();
+      allow read, write: if request.auth != null && 
+                           request.auth.token.email == 'admin@gmail.com';
     }
   }
 }
