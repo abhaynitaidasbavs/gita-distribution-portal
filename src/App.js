@@ -411,62 +411,159 @@ const GitaDistributionPortal = () => {
   }
 };
 
-  const updateSchool = async () => {
+ const updateSchool = async () => {
   try {
-    const schoolRef = doc(db, 'schools', editingItem.id);
-    await updateDoc(schoolRef, schoolForm);
+    console.log('=== UPDATE SCHOOL DEBUG ===');
+    console.log('Editing item:', editingItem);
+    console.log('New form data:', schoolForm);
     
-    // Update team's inventory based on the difference
+    const schoolRef = doc(db, 'schools', editingItem.id);
+    
+    // Get the original school data
     const originalSchool = editingItem;
     const teamId = schoolForm.teamId || originalSchool.teamId;
-    const team = teams.find(t => t.id === teamId);
     
-    if (team && team.inventory) {
-      // Calculate differences between old and new values
-      const oldTeluguIssued = parseInt(originalSchool.teluguSetsIssued || 0);
-      const oldEnglishIssued = parseInt(originalSchool.englishSetsIssued || 0);
-      const oldFreeSets = parseInt(originalSchool.freeSetsGiven || 0);
-      const oldTeluguTakenBack = parseInt(originalSchool.teluguSetsTakenBack || 0);
-      const oldEnglishTakenBack = parseInt(originalSchool.englishSetsTakenBack || 0);
-      
-      const newTeluguIssued = parseInt(schoolForm.teluguSetsIssued || 0);
-      const newEnglishIssued = parseInt(schoolForm.englishSetsIssued || 0);
-      const newFreeSets = parseInt(schoolForm.freeSetsGiven || 0);
-      const newTeluguTakenBack = parseInt(schoolForm.teluguSetsTakenBack || 0);
-      const newEnglishTakenBack = parseInt(schoolForm.englishSetsTakenBack || 0);
-      
-      // Calculate net changes
-      const deltaTelugu = (newTeluguIssued - newTeluguTakenBack) - (oldTeluguIssued - oldTeluguTakenBack);
-      const deltaEnglish = (newEnglishIssued - newEnglishTakenBack) - (oldEnglishIssued - oldEnglishTakenBack);
-      const deltaFree = newFreeSets - oldFreeSets;
-      
-      const deltaTotalSets = deltaTelugu + deltaEnglish + deltaFree;
-      
-      // Update inventory based on difference
-      const teamRef = doc(db, 'teams', teamId);
-      await updateDoc(teamRef, {
-        inventory: {
-          ...team.inventory,
-          gitaTelugu: Math.max(0, (team.inventory.gitaTelugu || 0) - deltaTelugu),
-          bookletTelugu: Math.max(0, (team.inventory.bookletTelugu || 0) - deltaTelugu),
-          gitaEnglish: Math.max(0, (team.inventory.gitaEnglish || 0) - deltaEnglish),
-          bookletEnglish: Math.max(0, (team.inventory.bookletEnglish || 0) - deltaEnglish),
-          calendar: Math.max(0, (team.inventory.calendar || 0) - deltaTotalSets),
-          chikki: Math.max(0, (team.inventory.chikki || 0) - deltaTotalSets)
-        }
-      });
+    console.log('Team ID:', teamId);
+    
+    // Fetch current team inventory
+    const teamDocRef = doc(db, 'teams', teamId);
+    const teamDocSnap = await getDoc(teamDocRef);
+    
+    if (!teamDocSnap.exists()) {
+      alert('Team document not found');
+      return;
     }
+    
+    const teamData = teamDocSnap.data();
+    if (!teamData.inventory) {
+      alert('Team inventory not found');
+      return;
+    }
+    
+    const currentInventory = teamData.inventory;
+    console.log('Current team inventory:', currentInventory);
+    
+    // OLD VALUES (what was previously recorded)
+    const oldTeluguIssued = parseInt(originalSchool.teluguSetsIssued || 0);
+    const oldEnglishIssued = parseInt(originalSchool.englishSetsIssued || 0);
+    const oldFreeSets = parseInt(originalSchool.freeSetsGiven || 0);
+    const oldTeluguTakenBack = parseInt(originalSchool.teluguSetsTakenBack || 0);
+    const oldEnglishTakenBack = parseInt(originalSchool.englishSetsTakenBack || 0);
+    
+    // Calculate OLD net distribution (what was deducted before)
+    const oldNetTelugu = oldTeluguIssued - oldTeluguTakenBack;
+    const oldNetEnglish = oldEnglishIssued - oldEnglishTakenBack;
+    const oldTotalSets = oldNetTelugu + oldNetEnglish + oldFreeSets;
+    
+    console.log('OLD values:');
+    console.log('  Telugu issued:', oldTeluguIssued, 'taken back:', oldTeluguTakenBack, 'net:', oldNetTelugu);
+    console.log('  English issued:', oldEnglishIssued, 'taken back:', oldEnglishTakenBack, 'net:', oldNetEnglish);
+    console.log('  Free sets:', oldFreeSets);
+    console.log('  Old total sets:', oldTotalSets);
+    
+    // NEW VALUES (what user is updating to)
+    const newTeluguIssued = parseInt(schoolForm.teluguSetsIssued || 0);
+    const newEnglishIssued = parseInt(schoolForm.englishSetsIssued || 0);
+    const newFreeSets = parseInt(schoolForm.freeSetsGiven || 0);
+    const newTeluguTakenBack = parseInt(schoolForm.teluguSetsTakenBack || 0);
+    const newEnglishTakenBack = parseInt(schoolForm.englishSetsTakenBack || 0);
+    
+    // Calculate NEW net distribution (what should be deducted now)
+    const newNetTelugu = newTeluguIssued - newTeluguTakenBack;
+    const newNetEnglish = newEnglishIssued - newEnglishTakenBack;
+    const newTotalSets = newNetTelugu + newNetEnglish + newFreeSets;
+    
+    console.log('NEW values:');
+    console.log('  Telugu issued:', newTeluguIssued, 'taken back:', newTeluguTakenBack, 'net:', newNetTelugu);
+    console.log('  English issued:', newEnglishIssued, 'taken back:', newEnglishTakenBack, 'net:', newNetEnglish);
+    console.log('  Free sets:', newFreeSets);
+    console.log('  New total sets:', newTotalSets);
+    
+    // Calculate DELTA (difference between new and old)
+    // Positive delta = need to deduct more from inventory
+    // Negative delta = need to add back to inventory
+    const deltaTelugu = newNetTelugu - oldNetTelugu;
+    const deltaEnglish = newNetEnglish - oldNetEnglish;
+    const deltaFree = newFreeSets - oldFreeSets;
+    const deltaTotalSets = newTotalSets - oldTotalSets;
+    
+    console.log('DELTA (change):');
+    console.log('  Telugu delta:', deltaTelugu);
+    console.log('  English delta:', deltaEnglish);
+    console.log('  Free sets delta:', deltaFree);
+    console.log('  Total sets delta:', deltaTotalSets);
+    
+    // Calculate new inventory by applying the delta
+    // If delta is positive, we deduct more (inventory decreases)
+    // If delta is negative, we add back (inventory increases)
+    const newInventory = {
+      gitaTelugu: Number(currentInventory.gitaTelugu || 0) - deltaTelugu,
+      bookletTelugu: Number(currentInventory.bookletTelugu || 0) - deltaTelugu,
+      gitaEnglish: Number(currentInventory.gitaEnglish || 0) - deltaEnglish,
+      bookletEnglish: Number(currentInventory.bookletEnglish || 0) - deltaEnglish,
+      calendar: Number(currentInventory.calendar || 0) - deltaTotalSets,
+      chikki: Number(currentInventory.chikki || 0) - deltaTotalSets
+    };
+    
+    console.log('New inventory after delta:', newInventory);
+    
+    // Validate that inventory doesn't go negative
+    if (newInventory.gitaTelugu < 0) {
+      alert(`Insufficient Gita Telugu inventory. Would result in: ${newInventory.gitaTelugu}`);
+      return;
+    }
+    if (newInventory.bookletTelugu < 0) {
+      alert(`Insufficient Booklet Telugu inventory. Would result in: ${newInventory.bookletTelugu}`);
+      return;
+    }
+    if (newInventory.gitaEnglish < 0) {
+      alert(`Insufficient Gita English inventory. Would result in: ${newInventory.gitaEnglish}`);
+      return;
+    }
+    if (newInventory.bookletEnglish < 0) {
+      alert(`Insufficient Booklet English inventory. Would result in: ${newInventory.bookletEnglish}`);
+      return;
+    }
+    if (newInventory.calendar < 0) {
+      alert(`Insufficient Calendar inventory. Would result in: ${newInventory.calendar}`);
+      return;
+    }
+    if (newInventory.chikki < 0) {
+      alert(`Insufficient Chikki inventory. Would result in: ${newInventory.chikki}`);
+      return;
+    }
+    
+    // Update school document
+    console.log('Updating school document...');
+    await updateDoc(schoolRef, schoolForm);
+    console.log('School updated successfully');
+    
+    // Update team inventory
+    console.log('Updating team inventory...');
+    await updateDoc(teamDocRef, {
+      inventory: newInventory
+    });
+    console.log('Inventory updated successfully');
     
     resetSchoolForm();
     setEditingItem(null);
     setShowModal(false);
-    alert('School updated successfully!');
+    alert('School updated successfully and inventory adjusted!');
+    
   } catch (error) {
-    console.error('Error updating school:', error);
-    alert('Error updating school. Please try again.');
+    console.error('=== ERROR UPDATING SCHOOL ===');
+    console.error('Error object:', error);
+    console.error('Error code:', error.code);
+    console.error('Error message:', error.message);
+    console.error('============================');
+    
+    if (error.code === 'permission-denied') {
+      alert('Permission denied. You may not have access to update this school or inventory.');
+    } else {
+      alert(`Error updating school: ${error.message}`);
+    }
   }
 };
-
   const deleteSchool = async (id) => {
   if (window.confirm('Are you sure you want to delete this school entry?')) {
     try {
