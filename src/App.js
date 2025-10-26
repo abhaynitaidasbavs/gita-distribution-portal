@@ -242,18 +242,12 @@ const GitaDistributionPortal = () => {
 
   // CRUD operations
   const addSchool = async () => {
-    try {
-     console.log('=== SCHOOL CREATION DEBUG ===');
+  try {
+    console.log('=== SCHOOL CREATION DEBUG ===');
     console.log('Current user:', auth.currentUser);
     console.log('Current user UID:', auth.currentUser?.uid);
     console.log('Current user email:', auth.currentUser?.email);
     
-    // Check if team document exists
-    const teamDocRef = doc(db, 'teams', auth.currentUser.uid);
-    const teamDocSnap = await getDoc(teamDocRef);
-    console.log('Team document exists:', teamDocSnap.exists());
-    if (teamDocSnap.exists()) {
-      console.log('Team document data:', teamDocSnap.data()); 
     let teamId;
     
     // Determine teamId based on user role
@@ -264,96 +258,147 @@ const GitaDistributionPortal = () => {
         return;
       }
     } else {
-      // For team users, get teamId from currentUser
-      teamId = currentUser.teamId;
+      // For team users, use their UID as teamId
+      teamId = auth.currentUser.uid;
       if (!teamId) {
         alert('Team ID not found. Please contact administrator.');
         return;
       }
     }
-     console.log('Adding school for teamId:', teamId); // Debug log 
-      const newSchool = {
-        teamId: teamId,
-        ...schoolForm,
-        moneySettled: false,
-        createdAt: new Date().toISOString()
-      };
-    console.log('School data:', newSchool); // Debug log
+    
+    console.log('Using teamId:', teamId);
+    
+    // Verify team document exists and get current inventory
+    const teamDocRef = doc(db, 'teams', teamId);
+    const teamDocSnap = await getDoc(teamDocRef);
+    
+    if (!teamDocSnap.exists()) {
+      alert('Team document not found. Please contact administrator.');
+      console.error('Team document does not exist for ID:', teamId);
+      return;
+    }
+    
+    const teamData = teamDocSnap.data();
+    console.log('Team document data:', teamData);
+    
+    if (!teamData.inventory) {
+      alert('Team inventory not initialized. Please contact administrator.');
+      console.error('Team inventory is missing');
+      return;
+    }
+    
+    const currentInventory = teamData.inventory;
+    console.log('Current inventory:', currentInventory);
+    
+    // Calculate what was distributed
+    const teluguSetsIssued = parseInt(schoolForm.teluguSetsIssued || 0);
+    const englishSetsIssued = parseInt(schoolForm.englishSetsIssued || 0);
+    const freeSetsGiven = parseInt(schoolForm.freeSetsGiven || 0);
+    
+    // Calculate what was taken back
+    const teluguSetsTakenBack = parseInt(schoolForm.teluguSetsTakenBack || 0);
+    const englishSetsTakenBack = parseInt(schoolForm.englishSetsTakenBack || 0);
+    
+    // Net sets = issued - taken back
+    const netTeluguSets = teluguSetsIssued - teluguSetsTakenBack;
+    const netEnglishSets = englishSetsIssued - englishSetsTakenBack;
+    
+    // Total sets needing calendar and chikki
+    const totalSetsNeeded = netTeluguSets + netEnglishSets + freeSetsGiven;
+    
+    console.log('Inventory calculation:');
+    console.log('Telugu sets issued:', teluguSetsIssued);
+    console.log('English sets issued:', englishSetsIssued);
+    console.log('Free sets given:', freeSetsGiven);
+    console.log('Telugu sets taken back:', teluguSetsTakenBack);
+    console.log('English sets taken back:', englishSetsTakenBack);
+    console.log('Net Telugu sets to deduct:', netTeluguSets);
+    console.log('Net English sets to deduct:', netEnglishSets);
+    console.log('Total sets needing accessories:', totalSetsNeeded);
+    
+    // Check if sufficient inventory exists
+    if (netTeluguSets > 0) {
+      if ((currentInventory.gitaTelugu || 0) < netTeluguSets) {
+        alert(`Insufficient Gita Telugu inventory. Available: ${currentInventory.gitaTelugu || 0}, Required: ${netTeluguSets}`);
+        return;
+      }
+      if ((currentInventory.bookletTelugu || 0) < netTeluguSets) {
+        alert(`Insufficient Booklet Telugu inventory. Available: ${currentInventory.bookletTelugu || 0}, Required: ${netTeluguSets}`);
+        return;
+      }
+    }
+    
+    if (netEnglishSets > 0) {
+      if ((currentInventory.gitaEnglish || 0) < netEnglishSets) {
+        alert(`Insufficient Gita English inventory. Available: ${currentInventory.gitaEnglish || 0}, Required: ${netEnglishSets}`);
+        return;
+      }
+      if ((currentInventory.bookletEnglish || 0) < netEnglishSets) {
+        alert(`Insufficient Booklet English inventory. Available: ${currentInventory.bookletEnglish || 0}, Required: ${netEnglishSets}`);
+        return;
+      }
+    }
+    
+    if (totalSetsNeeded > 0) {
+      if ((currentInventory.calendar || 0) < totalSetsNeeded) {
+        alert(`Insufficient Calendar inventory. Available: ${currentInventory.calendar || 0}, Required: ${totalSetsNeeded}`);
+        return;
+      }
+      if ((currentInventory.chikki || 0) < totalSetsNeeded) {
+        alert(`Insufficient Chikki inventory. Available: ${currentInventory.chikki || 0}, Required: ${totalSetsNeeded}`);
+        return;
+      }
+    }
+    
+    // Calculate new inventory values
+    const newInventory = {
+      gitaTelugu: Math.max(0, (currentInventory.gitaTelugu || 0) - netTeluguSets),
+      bookletTelugu: Math.max(0, (currentInventory.bookletTelugu || 0) - netTeluguSets),
+      gitaEnglish: Math.max(0, (currentInventory.gitaEnglish || 0) - netEnglishSets),
+      bookletEnglish: Math.max(0, (currentInventory.bookletEnglish || 0) - netEnglishSets),
+      calendar: Math.max(0, (currentInventory.calendar || 0) - totalSetsNeeded),
+      chikki: Math.max(0, (currentInventory.chikki || 0) - totalSetsNeeded)
+    };
+    
+    console.log('New inventory will be:', newInventory);
+    
+    // Create school document
+    const newSchool = {
+      teamId: teamId,
+      ...schoolForm,
+      moneySettled: false,
+      createdAt: new Date().toISOString()
+    };
+    
+    console.log('Creating school document:', newSchool);
+    
+    // Add school document
     await addDoc(collection(db, 'schools'), newSchool);
+    console.log('School document created successfully');
     
-    // Update team's inventory when sets are distributed
-    const team = teams.find(t => t.id === teamId);
-    console.log('=== INVENTORY UPDATE DEBUG ===');
-    console.log('Team found:', team);
-    console.log('Team inventory:', team?.inventory);
+    // Update team inventory
+    console.log('Updating team inventory...');
+    await updateDoc(teamDocRef, {
+      inventory: newInventory
+    });
+    console.log('Inventory updated successfully');
     
-    if (team && team.inventory) {
-      const inventoryUpdates = {};
-      
-      // Calculate what was distributed
-      const teluguSetsIssued = parseInt(schoolForm.teluguSetsIssued || 0);
-      const englishSetsIssued = parseInt(schoolForm.englishSetsIssued || 0);
-      const freeSetsGiven = parseInt(schoolForm.freeSetsGiven || 0);
-      
-      // Calculate what was taken back
-      const teluguSetsTakenBack = parseInt(schoolForm.teluguSetsTakenBack || 0);
-      const englishSetsTakenBack = parseInt(schoolForm.englishSetsTakenBack || 0);
-      
-      // Net Telugu sets = issued - taken back
-      const netTeluguSets = teluguSetsIssued - teluguSetsTakenBack;
-      
-      // Net English sets = issued - taken back
-      const netEnglishSets = englishSetsIssued - englishSetsTakenBack;
-      
-      // Free sets are assumed to use the same components (Telugu or English mix)
-      // For simplicity, we'll treat free sets as needing calendar and chikki at minimum
-      // Each set requires: 1 Calendar + 1 Chikki (at minimum)
-      
-      // Total sets (counting free sets too) for accessories
-      // Each English set = 1 Gita English + 1 Booklet English + 1 Calendar + 1 Chikki
-      // Each Telugu set = 1 Gita Telugu + 1 Booklet Telugu + 1 Calendar + 1 Chikki
-      // Free sets also need calendar and chikki
-      const totalSetsNeeded = netTeluguSets + netEnglishSets + freeSetsGiven;
-      
-      console.log('Inventory reduction calculation:');
-      console.log('Telugu sets issued:', teluguSetsIssued);
-      console.log('English sets issued:', englishSetsIssued);
-      console.log('Free sets given:', freeSetsGiven);
-      console.log('Net Telugu sets to reduce:', netTeluguSets);
-      console.log('Net English sets to reduce:', netEnglishSets);
-      console.log('Total sets needed:', totalSetsNeeded);
-      
-      // Update inventory based on net distribution
-      inventoryUpdates.inventory = {
-        ...team.inventory,
-        gitaTelugu: Math.max(0, (team.inventory.gitaTelugu || 0) - netTeluguSets),
-        bookletTelugu: Math.max(0, (team.inventory.bookletTelugu || 0) - netTeluguSets),
-        gitaEnglish: Math.max(0, (team.inventory.gitaEnglish || 0) - netEnglishSets),
-        bookletEnglish: Math.max(0, (team.inventory.bookletEnglish || 0) - netEnglishSets),
-        calendar: Math.max(0, (team.inventory.calendar || 0) - totalSetsNeeded),
-        chikki: Math.max(0, (team.inventory.chikki || 0) - totalSetsNeeded)
-      };
-      
-      console.log('Old inventory:', team.inventory);
-      console.log('New inventory:', inventoryUpdates.inventory);
- 
-      const teamRef = doc(db, 'teams', teamId);
-      console.log('Updating team with ID:', teamId);
-      await updateDoc(teamRef, inventoryUpdates);
-      console.log('Inventory updated successfully');
-    } else {
-      console.log('WARNING: Team or inventory not found');
-    }
-    console.log('===================================');
-    }
     resetSchoolForm();
     setShowModal(false);
-    alert('School added successfully!');
+    alert('School added successfully and inventory updated!');
+    
   } catch (error) {
-    console.error('Error adding school:', error);
+    console.error('=== ERROR ADDING SCHOOL ===');
+    console.error('Error object:', error);
     console.error('Error code:', error.code);
     console.error('Error message:', error.message);
-    alert('Error adding school. Please try again.');
+    console.error('========================');
+    
+    if (error.code === 'permission-denied') {
+      alert('Permission denied. You may not have access to update inventory. Please contact administrator.');
+    } else {
+      alert(`Error adding school: ${error.message}`);
+    }
   }
 };
 
