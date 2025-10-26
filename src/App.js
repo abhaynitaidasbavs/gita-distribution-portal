@@ -469,83 +469,105 @@ const GitaDistributionPortal = () => {
   }
 };
 
- const addTeam = async () => {
+
+const addTeam = async () => {
   try {
     if (!teamForm.name || !teamForm.username || !teamForm.password || !teamForm.contact) {
       alert('Please fill in all required fields (Name, Username, Password, Contact)');
       return;
     }
+    
     const email = `${teamForm.username.toLowerCase().trim().replace(/\s+/g, '')}@gmail.com`;
     
     console.log('=== ADD TEAM DEBUG ===');
-    console.log('Current user:', currentUser);
-    console.log('Current user email:', auth.currentUser?.email);
+    console.log('Current admin user before:', auth.currentUser?.email);
+    console.log('Current admin UID before:', auth.currentUser?.uid);
     console.log('Creating team with email:', email);
     console.log('=====================');
     
+    // Store admin credentials before creating secondary app
+    const adminUser = auth.currentUser;
+    const adminEmail = adminUser.email;
+    const adminUid = adminUser.uid;
+    
     // Create a SECONDARY Firebase app instance for creating the user
-    // This won't affect the current admin session
     const secondaryApp = initializeApp(firebaseConfig, 'Secondary');
     const secondaryAuth = getAuth(secondaryApp);
     
-    // Create user with the secondary auth instance
-    const userCredential = await createUserWithEmailAndPassword(
-      secondaryAuth, 
-      email, 
-      teamForm.password
-    );
-    const uid = userCredential.user.uid;
-    
-    console.log('Auth user created with UID:', uid);
-    
-   // Clean up secondary app
     try {
+      // Create user with the secondary auth instance
+      const userCredential = await createUserWithEmailAndPassword(
+        secondaryAuth, 
+        email, 
+        teamForm.password
+      );
+      const uid = userCredential.user.uid;
+      
+      console.log('New team user created with UID:', uid);
+      
+      // Sign out from secondary auth immediately
+      await signOut(secondaryAuth);
+      
+      // Clean up secondary app
       await deleteApp(secondaryApp);
-    } catch (e) {
-      console.log('Could not delete secondary app:', e);
+      
+      console.log('Secondary app cleaned up');
+      console.log('Main auth user after cleanup:', auth.currentUser?.email);
+      
+      // Verify admin is still logged in to main auth
+      if (!auth.currentUser || auth.currentUser.uid !== adminUid) {
+        console.error('Admin session was lost! Re-authenticating...');
+        alert('Session error occurred. Please try again.');
+        return;
+      }
+      
+      // Prepare team data
+      const teamData = {
+        id: uid,
+        name: teamForm.name,
+        username: teamForm.username,
+        contact: teamForm.contact,
+        role: 'team',
+        email: email,
+        setsRemaining: 0,
+        inventory: {
+          gitaTelugu: parseInt(teamForm.inventory?.gitaTelugu) || 0,
+          gitaEnglish: parseInt(teamForm.inventory?.gitaEnglish) || 0,
+          bookletTelugu: parseInt(teamForm.inventory?.bookletTelugu) || 0,
+          bookletEnglish: parseInt(teamForm.inventory?.bookletEnglish) || 0,
+          calendar: parseInt(teamForm.inventory?.calendar) || 0,
+          chikki: parseInt(teamForm.inventory?.chikki) || 0
+        },
+        createdAt: new Date().toISOString()
+      };
+      
+      console.log('=== FIRESTORE WRITE DEBUG ===');
+      console.log('Current auth user:', auth.currentUser?.email);
+      console.log('Current auth UID:', auth.currentUser?.uid);
+      console.log('Team data to write:', teamData);
+      console.log('Writing to path: teams/' + uid);
+      console.log('============================');
+      
+      // Write to Firestore as admin
+      await setDoc(doc(db, 'teams', uid), teamData);
+      
+      console.log('Team document created successfully');
+      console.log('Admin still logged in:', auth.currentUser?.email);
+      
+      resetTeamForm();
+      setShowModal(false);
+      alert(`Team "${teamForm.name}" added successfully!`);
+      
+    } catch (innerError) {
+      // Clean up secondary app if error occurs
+      try {
+        await signOut(secondaryAuth);
+        await deleteApp(secondaryApp);
+      } catch (cleanupError) {
+        console.log('Cleanup error (can be ignored):', cleanupError);
+      }
+      throw innerError;
     }
-    
-    // Wait a moment to ensure auth state is stable
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    console.log('Admin email after:', auth.currentUser?.email);
-    console.log('Admin UID:', auth.currentUser?.uid);
-    
-    
-    // Prepare team data
-    const teamData = {
-      id: uid,
-      name: teamForm.name,
-      username: teamForm.username,
-      contact: teamForm.contact,
-      role: 'team',
-      email: email,
-      setsRemaining: 0,
-      inventory: {
-        gitaTelugu: parseInt(teamForm.inventory?.gitaTelugu) || 0,
-        gitaEnglish: parseInt(teamForm.inventory?.gitaEnglish) || 0,
-        bookletTelugu: parseInt(teamForm.inventory?.bookletTelugu) || 0,
-        bookletEnglish: parseInt(teamForm.inventory?.bookletEnglish) || 0,
-        calendar: parseInt(teamForm.inventory?.calendar) || 0,
-        chikki: parseInt(teamForm.inventory?.chikki) || 0
-      },
-      createdAt: new Date().toISOString()
-    };
-    console.log('=== FIRESTORE WRITE DEBUG ===');
-    console.log('Current auth user:', auth.currentUser);
-    console.log('Current auth email:', auth.currentUser?.email);
-    console.log('Team data to write:', teamData);
-    console.log('Writing to path: teams/' + uid);
-    console.log('============================');
-    console.log('Attempting to write team data as admin:', teamData);
-    
-    // Write to Firestore as admin (admin is still authenticated)
-    await setDoc(doc(db, 'teams', uid), teamData);
-    
-    console.log('Team document created successfully');
-    resetTeamForm();
-    setShowModal(false);
-    alert(`Team "${teamForm.name}" added successfully!`);
     
   } catch (error) {
     console.error('=== ERROR ADDING TEAM ===');
