@@ -202,11 +202,20 @@ const GitaDistributionPortal = () => {
     
     if (userDocSnap.exists()) {
       const userData = userDocSnap.data();
+      console.log('User data fetched:', userData);
+      
+      // Set current user with teamId
+      const userWithTeamId = {
+        ...userData,
+        uid: uid,
+        teamId: uid // The document ID IS the teamId
+      };
       setCurrentUser({ ...userData, uid: uid, teamId: uid });
       setIsLoggedIn(true);
       
       if (userData.role === 'team') {
         setSelectedTeam(uid);
+        console.log('Team user logged in, selectedTeam set to:', uid);
       }
     } else {
       alert('User data not found in database');
