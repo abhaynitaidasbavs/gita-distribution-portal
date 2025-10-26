@@ -283,10 +283,14 @@ const GitaDistributionPortal = () => {
     
     // Update team's inventory when sets are distributed
     const team = teams.find(t => t.id === teamId);
+    console.log('=== INVENTORY UPDATE DEBUG ===');
+    console.log('Team found:', team);
+    console.log('Team inventory:', team?.inventory);
+    
     if (team && team.inventory) {
       const inventoryUpdates = {};
       
-      // Calculate what was distributed (issued sets, not just "distributed")
+      // Calculate what was distributed
       const teluguSetsIssued = parseInt(schoolForm.teluguSetsIssued || 0);
       const englishSetsIssued = parseInt(schoolForm.englishSetsIssued || 0);
       const freeSetsGiven = parseInt(schoolForm.freeSetsGiven || 0);
@@ -301,11 +305,23 @@ const GitaDistributionPortal = () => {
       // Net English sets = issued - taken back
       const netEnglishSets = englishSetsIssued - englishSetsTakenBack;
       
+      // Free sets are assumed to use the same components (Telugu or English mix)
+      // For simplicity, we'll treat free sets as needing calendar and chikki at minimum
+      // Each set requires: 1 Calendar + 1 Chikki (at minimum)
+      
+      // Total sets (counting free sets too) for accessories
       // Each English set = 1 Gita English + 1 Booklet English + 1 Calendar + 1 Chikki
       // Each Telugu set = 1 Gita Telugu + 1 Booklet Telugu + 1 Calendar + 1 Chikki
+      // Free sets also need calendar and chikki
+      const totalSetsNeeded = netTeluguSets + netEnglishSets + freeSetsGiven;
       
-      // Total accessories needed (both Telugu and English sets use calendar and chikki)
-      const totalSetsNeeded = netTeluguSets + netEnglishSets;
+      console.log('Inventory reduction calculation:');
+      console.log('Telugu sets issued:', teluguSetsIssued);
+      console.log('English sets issued:', englishSetsIssued);
+      console.log('Free sets given:', freeSetsGiven);
+      console.log('Net Telugu sets to reduce:', netTeluguSets);
+      console.log('Net English sets to reduce:', netEnglishSets);
+      console.log('Total sets needed:', totalSetsNeeded);
       
       // Update inventory based on net distribution
       inventoryUpdates.inventory = {
@@ -317,10 +333,18 @@ const GitaDistributionPortal = () => {
         calendar: Math.max(0, (team.inventory.calendar || 0) - totalSetsNeeded),
         chikki: Math.max(0, (team.inventory.chikki || 0) - totalSetsNeeded)
       };
-
+      
+      console.log('Old inventory:', team.inventory);
+      console.log('New inventory:', inventoryUpdates.inventory);
+ 
       const teamRef = doc(db, 'teams', teamId);
+      console.log('Updating team with ID:', teamId);
       await updateDoc(teamRef, inventoryUpdates);
+      console.log('Inventory updated successfully');
+    } else {
+      console.log('WARNING: Team or inventory not found');
     }
+    console.log('===================================');
     }
     resetSchoolForm();
     setShowModal(false);
@@ -337,6 +361,47 @@ const GitaDistributionPortal = () => {
   try {
     const schoolRef = doc(db, 'schools', editingItem.id);
     await updateDoc(schoolRef, schoolForm);
+    
+    // Update team's inventory based on the difference
+    const originalSchool = editingItem;
+    const teamId = schoolForm.teamId || originalSchool.teamId;
+    const team = teams.find(t => t.id === teamId);
+    
+    if (team && team.inventory) {
+      // Calculate differences between old and new values
+      const oldTeluguIssued = parseInt(originalSchool.teluguSetsIssued || 0);
+      const oldEnglishIssued = parseInt(originalSchool.englishSetsIssued || 0);
+      const oldFreeSets = parseInt(originalSchool.freeSetsGiven || 0);
+      const oldTeluguTakenBack = parseInt(originalSchool.teluguSetsTakenBack || 0);
+      const oldEnglishTakenBack = parseInt(originalSchool.englishSetsTakenBack || 0);
+      
+      const newTeluguIssued = parseInt(schoolForm.teluguSetsIssued || 0);
+      const newEnglishIssued = parseInt(schoolForm.englishSetsIssued || 0);
+      const newFreeSets = parseInt(schoolForm.freeSetsGiven || 0);
+      const newTeluguTakenBack = parseInt(schoolForm.teluguSetsTakenBack || 0);
+      const newEnglishTakenBack = parseInt(schoolForm.englishSetsTakenBack || 0);
+      
+      // Calculate net changes
+      const deltaTelugu = (newTeluguIssued - newTeluguTakenBack) - (oldTeluguIssued - oldTeluguTakenBack);
+      const deltaEnglish = (newEnglishIssued - newEnglishTakenBack) - (oldEnglishIssued - oldEnglishTakenBack);
+      const deltaFree = newFreeSets - oldFreeSets;
+      
+      const deltaTotalSets = deltaTelugu + deltaEnglish + deltaFree;
+      
+      // Update inventory based on difference
+      const teamRef = doc(db, 'teams', teamId);
+      await updateDoc(teamRef, {
+        inventory: {
+          ...team.inventory,
+          gitaTelugu: Math.max(0, (team.inventory.gitaTelugu || 0) - deltaTelugu),
+          bookletTelugu: Math.max(0, (team.inventory.bookletTelugu || 0) - deltaTelugu),
+          gitaEnglish: Math.max(0, (team.inventory.gitaEnglish || 0) - deltaEnglish),
+          bookletEnglish: Math.max(0, (team.inventory.bookletEnglish || 0) - deltaEnglish),
+          calendar: Math.max(0, (team.inventory.calendar || 0) - deltaTotalSets),
+          chikki: Math.max(0, (team.inventory.chikki || 0) - deltaTotalSets)
+        }
+      });
+    }
     
     resetSchoolForm();
     setEditingItem(null);
