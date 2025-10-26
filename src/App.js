@@ -1096,21 +1096,7 @@ const addTeam = async () => {
                         <span className="font-semibold text-blue-600">{stats.totalFree}</span>
                       </div>
                       
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">Remaining Sets</span>
-                        <div className="flex items-center space-x-2">
-                          {currentUser.role === 'admin' ? (
-                            <input
-                              type="number"
-                              value={team.setsRemaining}
-                              onChange={(e) => updateTeamSets(team.id, e.target.value)}
-                              className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
-                            />
-                          ) : (
-                            <span className="font-semibold text-orange-600">{team.setsRemaining}</span>
-                          )}
-                        </div>
-                      </div>
+                     
                       
                       <div className="border-t pt-3">
                         <div className="flex justify-between items-center mb-2">
