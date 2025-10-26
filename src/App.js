@@ -926,10 +926,7 @@ const GitaDistributionPortal = () => {
                           <span className="font-semibold text-green-700">₹{stats.totalCollected.toLocaleString()}</span>
                         </div>
                         
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600">Settled</span>
-                          <span className="font-semibold text-blue-700">₹{stats.totalSettled.toLocaleString()}</span>
-                        </div>
+                        
                       </div>
                     </div>
                   </div>
