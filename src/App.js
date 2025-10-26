@@ -299,11 +299,13 @@ const GitaDistributionPortal = () => {
       const netTeluguSets = teluguSetsIssued - teluguSetsTakenBack;
       
       // Net English sets = issued - taken back
-      // Each English set = 1 Gita English + 1 Booklet English + 1 Calendar + 1 Chikki
       const netEnglishSets = englishSetsIssued - englishSetsTakenBack;
       
-      // Net Telugu sets = 1 Gita Telugu + 1 Booklet Telugu (calendar and chikki might be shared)
-      // For simplicity, we'll treat it as: 1 Telugu set = 1 Gita Telugu + 1 Booklet Telugu
+      // Each English set = 1 Gita English + 1 Booklet English + 1 Calendar + 1 Chikki
+      // Each Telugu set = 1 Gita Telugu + 1 Booklet Telugu + 1 Calendar + 1 Chikki
+      
+      // Total accessories needed (both Telugu and English sets use calendar and chikki)
+      const totalSetsNeeded = netTeluguSets + netEnglishSets;
       
       // Update inventory based on net distribution
       inventoryUpdates.inventory = {
@@ -312,8 +314,8 @@ const GitaDistributionPortal = () => {
         bookletTelugu: Math.max(0, (team.inventory.bookletTelugu || 0) - netTeluguSets),
         gitaEnglish: Math.max(0, (team.inventory.gitaEnglish || 0) - netEnglishSets),
         bookletEnglish: Math.max(0, (team.inventory.bookletEnglish || 0) - netEnglishSets),
-        calendar: Math.max(0, (team.inventory.calendar || 0) - netEnglishSets),
-        chikki: Math.max(0, (team.inventory.chikki || 0) - netEnglishSets)
+        calendar: Math.max(0, (team.inventory.calendar || 0) - totalSetsNeeded),
+        chikki: Math.max(0, (team.inventory.chikki || 0) - totalSetsNeeded)
       };
 
       const teamRef = doc(db, 'teams', teamId);
@@ -1636,7 +1638,9 @@ const GitaDistributionPortal = () => {
                   );
                   const maxTeluguSets = Math.min(
                     team.inventory.gitaTelugu || 0,
-                    team.inventory.bookletTelugu || 0
+                    team.inventory.bookletTelugu || 0,
+                    team.inventory.calendar || 0,
+                    team.inventory.chikki || 0
                   );
                   
                   return (
