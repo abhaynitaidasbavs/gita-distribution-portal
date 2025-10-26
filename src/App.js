@@ -281,20 +281,43 @@ const GitaDistributionPortal = () => {
     console.log('School data:', newSchool); // Debug log
     await addDoc(collection(db, 'schools'), newSchool);
     
-    // Update team's remaining sets
+    // Update team's inventory when sets are distributed
     const team = teams.find(t => t.id === teamId);
-    if (team) {
-      const distributedSets = parseInt(schoolForm.teluguSetsDistributed) + 
-                        parseInt(schoolForm.englishSetsDistributed) + 
-                        parseInt(schoolForm.freeSetsGiven);
-      const returnedSets = parseInt(schoolForm.teluguSetsTakenBack) + 
-                     parseInt(schoolForm.englishSetsTakenBack);
-      const netDistributed = distributedSets - returnedSets;
+    if (team && team.inventory) {
+      const inventoryUpdates = {};
+      
+      // Calculate what was distributed (issued sets, not just "distributed")
+      const teluguSetsIssued = parseInt(schoolForm.teluguSetsIssued || 0);
+      const englishSetsIssued = parseInt(schoolForm.englishSetsIssued || 0);
+      const freeSetsGiven = parseInt(schoolForm.freeSetsGiven || 0);
+      
+      // Calculate what was taken back
+      const teluguSetsTakenBack = parseInt(schoolForm.teluguSetsTakenBack || 0);
+      const englishSetsTakenBack = parseInt(schoolForm.englishSetsTakenBack || 0);
+      
+      // Net Telugu sets = issued - taken back
+      const netTeluguSets = teluguSetsIssued - teluguSetsTakenBack;
+      
+      // Net English sets = issued - taken back
+      // Each English set = 1 Gita English + 1 Booklet English + 1 Calendar + 1 Chikki
+      const netEnglishSets = englishSetsIssued - englishSetsTakenBack;
+      
+      // Net Telugu sets = 1 Gita Telugu + 1 Booklet Telugu (calendar and chikki might be shared)
+      // For simplicity, we'll treat it as: 1 Telugu set = 1 Gita Telugu + 1 Booklet Telugu
+      
+      // Update inventory based on net distribution
+      inventoryUpdates.inventory = {
+        ...team.inventory,
+        gitaTelugu: Math.max(0, (team.inventory.gitaTelugu || 0) - netTeluguSets),
+        bookletTelugu: Math.max(0, (team.inventory.bookletTelugu || 0) - netTeluguSets),
+        gitaEnglish: Math.max(0, (team.inventory.gitaEnglish || 0) - netEnglishSets),
+        bookletEnglish: Math.max(0, (team.inventory.bookletEnglish || 0) - netEnglishSets),
+        calendar: Math.max(0, (team.inventory.calendar || 0) - netEnglishSets),
+        chikki: Math.max(0, (team.inventory.chikki || 0) - netEnglishSets)
+      };
 
       const teamRef = doc(db, 'teams', teamId);
-      await updateDoc(teamRef, {
-        setsRemaining: team.setsRemaining - netDistributed
-});
+      await updateDoc(teamRef, inventoryUpdates);
     }
     }
     resetSchoolForm();
@@ -487,6 +510,18 @@ const GitaDistributionPortal = () => {
     } catch (error) {
       console.error('Error updating team sets:', error);
       alert('Error updating sets. Please try again.');
+    }
+  };
+
+  const updateTeamInventory = async (teamId, updatedInventory) => {
+    try {
+      const teamRef = doc(db, 'teams', teamId);
+      await updateDoc(teamRef, {
+        inventory: updatedInventory
+      });
+    } catch (error) {
+      console.error('Error updating team inventory:', error);
+      alert('Error updating inventory. Please try again.');
     }
   };
 
@@ -822,6 +857,12 @@ const GitaDistributionPortal = () => {
                   Teams
                 </button>
                 <button
+                  onClick={() => setActiveView('inventory')}
+                  className={`px-6 py-3 font-medium ${activeView === 'inventory' ? 'text-orange-600 border-b-2 border-orange-600' : 'text-gray-600 hover:text-orange-600'}`}
+                >
+                  Inventory
+                </button>
+                <button
                   onClick={() => setActiveView('requirements')}
                   className={`px-6 py-3 font-medium ${activeView === 'requirements' ? 'text-orange-600 border-b-2 border-orange-600' : 'text-gray-600 hover:text-orange-600'}`}
                 >
@@ -836,12 +877,20 @@ const GitaDistributionPortal = () => {
               </>
             )}
             {currentUser.role === 'team' && (
-              <button
-                onClick={() => setActiveView('settlements')}
-                className={`px-6 py-3 font-medium ${activeView === 'settlements' ? 'text-orange-600 border-b-2 border-orange-600' : 'text-gray-600 hover:text-orange-600'}`}
-              >
-                Money Settlement
-              </button>
+              <>
+                <button
+                  onClick={() => setActiveView('inventory')}
+                  className={`px-6 py-3 font-medium ${activeView === 'inventory' ? 'text-orange-600 border-b-2 border-orange-600' : 'text-gray-600 hover:text-orange-600'}`}
+                >
+                  Inventory
+                </button>
+                <button
+                  onClick={() => setActiveView('settlements')}
+                  className={`px-6 py-3 font-medium ${activeView === 'settlements' ? 'text-orange-600 border-b-2 border-orange-600' : 'text-gray-600 hover:text-orange-600'}`}
+                >
+                  Money Settlement
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -1406,6 +1455,311 @@ const GitaDistributionPortal = () => {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Inventory View */}
+        {activeView === 'inventory' && (
+          <div className="space-y-6">
+            {currentUser.role === 'admin' ? (
+              <>
+                <h2 className="text-2xl font-bold text-gray-800">Inventory Management</h2>
+                
+                {/* Team Selector for Admin */}
+                <div className="bg-white rounded-lg shadow-md p-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Select Team</label>
+                  <select
+                    value={selectedTeam || ''}
+                    onChange={(e) => setSelectedTeam(e.target.value || null)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                  >
+                    <option value="">All Teams</option>
+                    {teams.map(team => (
+                      <option key={team.id} value={team.id}>{team.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Inventory Cards for Selected Team(s) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {(selectedTeam ? [teams.find(t => t.id === selectedTeam)] : teams).filter(Boolean).map(team => {
+                    if (!team.inventory) return null;
+                    return (
+                      <div key={team.id} className="bg-white rounded-lg shadow-md p-6">
+                        <div className="flex items-start justify-between mb-4">
+                          <h3 className="text-lg font-semibold text-gray-800">{team.name}</h3>
+                          <Package className="w-8 h-8 text-orange-600" />
+                        </div>
+                        
+                        <div className="space-y-3">
+                          <div className="border-b pb-3">
+                            <h4 className="text-sm font-semibold text-gray-700 mb-2">Telugu Sets</h4>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">Gita Telugu</label>
+                                <input
+                                  type="number"
+                                  value={team.inventory.gitaTelugu || 0}
+                                  onChange={(e) => {
+                                    const updatedInventory = {
+                                      ...team.inventory,
+                                      gitaTelugu: parseInt(e.target.value) || 0
+                                    };
+                                    updateTeamInventory(team.id, updatedInventory);
+                                  }}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">Booklet Telugu</label>
+                                <input
+                                  type="number"
+                                  value={team.inventory.bookletTelugu || 0}
+                                  onChange={(e) => {
+                                    const updatedInventory = {
+                                      ...team.inventory,
+                                      bookletTelugu: parseInt(e.target.value) || 0
+                                    };
+                                    updateTeamInventory(team.id, updatedInventory);
+                                  }}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="border-b pb-3">
+                            <h4 className="text-sm font-semibold text-gray-700 mb-2">English Sets</h4>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">Gita English</label>
+                                <input
+                                  type="number"
+                                  value={team.inventory.gitaEnglish || 0}
+                                  onChange={(e) => {
+                                    const updatedInventory = {
+                                      ...team.inventory,
+                                      gitaEnglish: parseInt(e.target.value) || 0
+                                    };
+                                    updateTeamInventory(team.id, updatedInventory);
+                                  }}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">Booklet English</label>
+                                <input
+                                  type="number"
+                                  value={team.inventory.bookletEnglish || 0}
+                                  onChange={(e) => {
+                                    const updatedInventory = {
+                                      ...team.inventory,
+                                      bookletEnglish: parseInt(e.target.value) || 0
+                                    };
+                                    updateTeamInventory(team.id, updatedInventory);
+                                  }}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div>
+                            <h4 className="text-sm font-semibold text-gray-700 mb-2">Accessories</h4>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">Calendar</label>
+                                <input
+                                  type="number"
+                                  value={team.inventory.calendar || 0}
+                                  onChange={(e) => {
+                                    const updatedInventory = {
+                                      ...team.inventory,
+                                      calendar: parseInt(e.target.value) || 0
+                                    };
+                                    updateTeamInventory(team.id, updatedInventory);
+                                  }}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">Chikki</label>
+                                <input
+                                  type="number"
+                                  value={team.inventory.chikki || 0}
+                                  onChange={(e) => {
+                                    const updatedInventory = {
+                                      ...team.inventory,
+                                      chikki: parseInt(e.target.value) || 0
+                                    };
+                                    updateTeamInventory(team.id, updatedInventory);
+                                  }}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Team User Inventory View (Read-Only) */}
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold text-gray-800">My Inventory</h2>
+                  <div className="flex items-center space-x-2 text-orange-600">
+                    <Package className="w-6 h-6" />
+                    <span className="text-sm font-medium">Read-Only</span>
+                  </div>
+                </div>
+                
+                {(() => {
+                  const team = teams.find(t => t.id === currentUser.teamId);
+                  if (!team || !team.inventory) {
+                    return (
+                      <div className="bg-white rounded-lg shadow-md p-12 text-center text-gray-500">
+                        <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                        <p>No inventory data available</p>
+                      </div>
+                    );
+                  }
+                  
+                  // Calculate minimum set counts (bottleneck items)
+                  const maxEnglishSets = Math.min(
+                    team.inventory.gitaEnglish || 0,
+                    team.inventory.bookletEnglish || 0,
+                    team.inventory.calendar || 0,
+                    team.inventory.chikki || 0
+                  );
+                  const maxTeluguSets = Math.min(
+                    team.inventory.gitaTelugu || 0,
+                    team.inventory.bookletTelugu || 0
+                  );
+                  
+                  return (
+                    <div className="space-y-6">
+                      {/* Summary Cards */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-6 border border-orange-200">
+                          <div className="flex items-center space-x-3 mb-3">
+                            <BookOpen className="w-8 h-8 text-orange-600" />
+                            <h3 className="text-xl font-bold text-gray-800">Available Sets</h3>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4 mt-4">
+                            <div>
+                              <div className="text-sm text-gray-600 mb-1">Telugu Sets</div>
+                              <div className="text-3xl font-bold text-orange-700">{maxTeluguSets}</div>
+                            </div>
+                            <div>
+                              <div className="text-sm text-gray-600 mb-1">English Sets</div>
+                              <div className="text-3xl font-bold text-orange-700">{maxEnglishSets}</div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-6 border border-blue-200">
+                          <div className="flex items-center space-x-3 mb-3">
+                            <Package className="w-8 h-8 text-blue-600" />
+                            <h3 className="text-xl font-bold text-gray-800">Quick Stats</h3>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4 mt-4">
+                            <div>
+                              <div className="text-sm text-gray-600 mb-1">Total Items</div>
+                              <div className="text-3xl font-bold text-blue-700">
+                                {(team.inventory.gitaTelugu || 0) + 
+                                 (team.inventory.gitaEnglish || 0) + 
+                                 (team.inventory.bookletTelugu || 0) + 
+                                 (team.inventory.bookletEnglish || 0) + 
+                                 (team.inventory.calendar || 0) + 
+                                 (team.inventory.chikki || 0)}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-sm text-gray-600 mb-1">Total Accessories</div>
+                              <div className="text-3xl font-bold text-blue-700">
+                                {(team.inventory.calendar || 0) + (team.inventory.chikki || 0)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Detailed Inventory */}
+                      <div className="bg-white rounded-lg shadow-md p-6">
+                        <h3 className="text-lg font-semibold text-gray-800 mb-4">Detailed Inventory</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                          <div className="border-2 border-orange-200 rounded-lg p-5 bg-orange-50">
+                            <h4 className="text-md font-bold text-orange-800 mb-3 flex items-center space-x-2">
+                              <BookOpen className="w-5 h-5" />
+                              <span>Telugu Sets</span>
+                            </h4>
+                            <div className="space-y-3">
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm font-medium text-gray-700">Gita Telugu:</span>
+                                <span className="font-bold text-lg text-orange-600">{team.inventory.gitaTelugu || 0}</span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm font-medium text-gray-700">Booklet Telugu:</span>
+                                <span className="font-bold text-lg text-orange-600">{team.inventory.bookletTelugu || 0}</span>
+                              </div>
+                              <div className="pt-3 border-t border-orange-300">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm font-bold text-gray-800">Complete Sets:</span>
+                                  <span className="font-bold text-xl text-orange-700">{maxTeluguSets}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="border-2 border-blue-200 rounded-lg p-5 bg-blue-50">
+                            <h4 className="text-md font-bold text-blue-800 mb-3 flex items-center space-x-2">
+                              <BookOpen className="w-5 h-5" />
+                              <span>English Sets</span>
+                            </h4>
+                            <div className="space-y-3">
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm font-medium text-gray-700">Gita English:</span>
+                                <span className="font-bold text-lg text-blue-600">{team.inventory.gitaEnglish || 0}</span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm font-medium text-gray-700">Booklet English:</span>
+                                <span className="font-bold text-lg text-blue-600">{team.inventory.bookletEnglish || 0}</span>
+                              </div>
+                              <div className="pt-3 border-t border-blue-300">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm font-bold text-gray-800">Complete Sets:</span>
+                                  <span className="font-bold text-xl text-blue-700">{maxEnglishSets}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="border-2 border-green-200 rounded-lg p-5 bg-green-50">
+                            <h4 className="text-md font-bold text-green-800 mb-3 flex items-center space-x-2">
+                              <Package className="w-5 h-5" />
+                              <span>Accessories</span>
+                            </h4>
+                            <div className="space-y-3">
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm font-medium text-gray-700">Calendar:</span>
+                                <span className="font-bold text-lg text-green-600">{team.inventory.calendar || 0}</span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm font-medium text-gray-700">Chikki:</span>
+                                <span className="font-bold text-lg text-green-600">{team.inventory.chikki || 0}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </>
+            )}
           </div>
         )}
       </main>
