@@ -74,6 +74,15 @@ const GitaDistributionPortal = () => {
 }, [isLoggedIn]);
 
   const [requirements, setRequirements] = useState([]);
+  
+  // Load pricing from localStorage on mount
+  useEffect(() => {
+    const savedPrice = localStorage.getItem('perSetPrice');
+    if (savedPrice) {
+      setPerSetPrice(parseInt(savedPrice));
+    }
+  }, []);
+
   // Fetch requirements in real-time
   useEffect(() => {
     if (!isLoggedIn) return;
@@ -164,6 +173,18 @@ const GitaDistributionPortal = () => {
     bookletTelugu: 0, bookletEnglish: 0,
     calendar: 0, chikki: 0,
     reason: ''
+  });
+
+  // Pricing and inventory issuance state
+  const [perSetPrice, setPerSetPrice] = useState(250); // Default price
+  const [issueInventoryForm, setIssueInventoryForm] = useState({
+    teamId: '',
+    gitaTelugu: 0, gitaEnglish: 0,
+    bookletTelugu: 0, bookletEnglish: 0,
+    calendar: 0, chikki: 0,
+    issuedDate: new Date().toISOString().split('T')[0],
+    contactPerson: '',
+    contactPhone: ''
   });
 
   // Admin credentials
@@ -778,6 +799,114 @@ const addTeam = async () => {
     }
   };
 
+  // Issue inventory to team
+  const issueInventoryToTeam = async () => {
+    try {
+      if (!issueInventoryForm.teamId) {
+        alert('Please select a team');
+        return;
+      }
+      
+      const teamRef = doc(db, 'teams', issueInventoryForm.teamId);
+      const teamSnap = await getDoc(teamRef);
+      
+      if (!teamSnap.exists()) {
+        alert('Team not found');
+        return;
+      }
+      
+      const currentInventory = teamSnap.data().inventory || {};
+      const issueHistory = teamSnap.data().issueHistory || [];
+      
+      // Calculate new inventory
+      const updatedInventory = {
+        gitaTelugu: (currentInventory.gitaTelugu || 0) + (issueInventoryForm.gitaTelugu || 0),
+        bookletTelugu: (currentInventory.bookletTelugu || 0) + (issueInventoryForm.bookletTelugu || 0),
+        gitaEnglish: (currentInventory.gitaEnglish || 0) + (issueInventoryForm.gitaEnglish || 0),
+        bookletEnglish: (currentInventory.bookletEnglish || 0) + (issueInventoryForm.bookletEnglish || 0),
+        calendar: (currentInventory.calendar || 0) + (issueInventoryForm.calendar || 0),
+        chikki: (currentInventory.chikki || 0) + (issueInventoryForm.chikki || 0)
+      };
+      
+      // Calculate total sets
+      const totalSets = (issueInventoryForm.gitaTelugu || 0) + 
+                        (issueInventoryForm.gitaEnglish || 0) +
+                        (issueInventoryForm.bookletTelugu || 0) +
+                        (issueInventoryForm.bookletEnglish || 0) +
+                        (issueInventoryForm.calendar || 0) +
+                        (issueInventoryForm.chikki || 0);
+      
+      // Add to issue history
+      const newIssue = {
+        ...issueInventoryForm,
+        totalSets,
+        timestamp: new Date().toISOString()
+      };
+      
+      // Update team document
+      await updateDoc(teamRef, {
+        inventory: updatedInventory,
+        issueHistory: [...issueHistory, newIssue]
+      });
+      
+      alert(`Inventory issued successfully! Total items: ${totalSets}`);
+      
+      // Reset form
+      setIssueInventoryForm({
+        teamId: '',
+        gitaTelugu: 0, gitaEnglish: 0,
+        bookletTelugu: 0, bookletEnglish: 0,
+        calendar: 0, chikki: 0,
+        issuedDate: new Date().toISOString().split('T')[0],
+        contactPerson: '',
+        contactPhone: ''
+      });
+      setShowModal(false);
+    } catch (error) {
+      console.error('Error issuing inventory:', error);
+      alert('Error issuing inventory. Please try again.');
+    }
+  };
+
+  // Update pricing per set
+  const updatePerSetPrice = async (newPrice) => {
+    try {
+      setPerSetPrice(newPrice);
+      // Store in localStorage or in a config document
+      localStorage.setItem('perSetPrice', newPrice);
+      alert('Price per set updated successfully!');
+    } catch (error) {
+      console.error('Error updating price:', error);
+      alert('Error updating price. Please try again.');
+    }
+  };
+
+  // Calculate total sets given to team
+  const calculateTotalSetsGiven = (team) => {
+    const issueHistory = team.issueHistory || [];
+    return issueHistory.reduce((sum, issue) => sum + (issue.totalSets || 0), 0);
+  };
+
+  // Calculate settlement difference for a team
+  const calculateTeamSettlementDifference = (teamId) => {
+    const teamSchools = schools.filter(s => s.teamId === teamId);
+    const totalCollected = teamSchools.reduce((sum, s) => sum + parseFloat(s.moneyCollected || 0), 0);
+    const totalSettled = teamSchools.filter(s => s.moneySettled).reduce((sum, s) => sum + parseFloat(s.moneyCollected || 0), 0);
+    
+    // Calculate total sets that should have been paid for
+    const totalNetSets = teamSchools.reduce((sum, school) => {
+      const netTelugu = (school.teluguSetsIssued || 0) - (school.teluguSetsTakenBack || 0);
+      const netEnglish = (school.englishSetsIssued || 0) - (school.englishSetsTakenBack || 0);
+      const freeSets = school.freeSetsGiven || 0;
+      return sum + netTelugu + netEnglish + freeSets;
+    }, 0);
+    
+    const expectedAmount = totalNetSets * perSetPrice;
+    const difference = expectedAmount - totalSettled;
+    
+    return { totalCollected, totalSettled, expectedAmount, difference };
+  };
+
   const toggleMoneySettled = async (schoolId) => {
     try {
       const school = schools.find(s => s.id === schoolId);
@@ -1314,7 +1443,28 @@ const addTeam = async () => {
                           <span className="font-semibold text-green-700">₹{stats.totalCollected.toLocaleString()}</span>
                         </div>
                         
-                        
+                        {/* Settlement Calculation */}
+                        {(() => {
+                          const settlement = calculateTeamSettlementDifference(team.id);
+                          return (
+                            <>
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="text-sm text-gray-600">Total Settled</span>
+                                <span className="font-semibold text-blue-700">₹{settlement.totalSettled.toLocaleString()}</span>
+                              </div>
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="text-sm text-gray-600">Expected Amount</span>
+                                <span className="font-semibold text-purple-700">₹{settlement.expectedAmount.toLocaleString()}</span>
+                              </div>
+                              <div className="flex justify-between items-center mt-2 pt-2 border-t">
+                                <span className="text-sm font-medium text-gray-800">Difference</span>
+                                <span className={`font-semibold ${settlement.difference >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                                  {settlement.difference >= 0 ? '+' : ''}₹{settlement.difference.toLocaleString()}
+                                </span>
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -1759,6 +1909,30 @@ const addTeam = async () => {
                         <span className="text-gray-600">Money Collected:</span>
                         <span className="font-medium text-green-700">₹{stats.totalCollected.toLocaleString()}</span>
                       </div>
+                      {/* Settlement Calculation */}
+                      {(() => {
+                        const settlement = calculateTeamSettlementDifference(team.id);
+                        return (
+                          <>
+                            <div className="border-t pt-2 mt-2">
+                              <div className="flex justify-between text-sm">
+                                <span className="text-gray-600">Total Settled:</span>
+                                <span className="font-medium text-blue-700">₹{settlement.totalSettled.toLocaleString()}</span>
+                              </div>
+                              <div className="flex justify-between text-sm">
+                                <span className="text-gray-600">Expected Amount:</span>
+                                <span className="font-medium text-purple-700">₹{settlement.expectedAmount.toLocaleString()}</span>
+                              </div>
+                              <div className="flex justify-between text-sm">
+                                <span className="text-gray-600">Difference:</span>
+                                <span className={`font-medium ${settlement.difference >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                                  {settlement.difference >= 0 ? '+' : ''}₹{settlement.difference.toLocaleString()}
+                                </span>
+                              </div>
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                     
                     <div className="border-t pt-4">
@@ -1989,7 +2163,41 @@ const addTeam = async () => {
           <div className="space-y-6">
             {currentUser.role === 'admin' ? (
               <>
-                <h2 className="text-2xl font-bold text-gray-800">Inventory Management</h2>
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold text-gray-800">Inventory Management</h2>
+                  <div className="flex items-center space-x-4">
+                    {/* Pricing Configuration */}
+                    <div className="flex items-center space-x-2">
+                      <label className="text-sm font-medium text-gray-700">Price per Set:</label>
+                      <input
+                        type="number"
+                        value={perSetPrice}
+                        onChange={(e) => updatePerSetPrice(parseInt(e.target.value) || 250)}
+                        className="w-24 px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      />
+                    </div>
+                    {/* Issue Inventory Button */}
+                    <button
+                      onClick={() => {
+                        setModalType('issueInventory');
+                        setIssueInventoryForm({
+                          teamId: '',
+                          gitaTelugu: 0, gitaEnglish: 0,
+                          bookletTelugu: 0, bookletEnglish: 0,
+                          calendar: 0, chikki: 0,
+                          issuedDate: new Date().toISOString().split('T')[0],
+                          contactPerson: '',
+                          contactPhone: ''
+                        });
+                        setShowModal(true);
+                      }}
+                      className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Issue Inventory</span>
+                    </button>
+                  </div>
+                </div>
                 
                 {/* Team Selector for Admin */}
                 <div className="bg-white rounded-lg shadow-md p-4">
@@ -2303,6 +2511,7 @@ const addTeam = async () => {
                 {modalType === 'requirement' && 'Raise Requirement'}
                 {modalType === 'viewSchool' && 'School Details'}
                 {modalType === 'settlement' && 'Submit Money Settlement'}
+                {modalType === 'issueInventory' && 'Issue Inventory to Team'}
               </h3>
               <button
                 onClick={() => {
@@ -3061,6 +3270,144 @@ const addTeam = async () => {
                       className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                     >
                       Submit Settlement
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Issue Inventory Form */}
+              {modalType === 'issueInventory' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Select Team *</label>
+                    <select
+                      value={issueInventoryForm.teamId}
+                      onChange={(e) => setIssueInventoryForm({...issueInventoryForm, teamId: e.target.value})}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      required
+                    >
+                      <option value="">Select a team</option>
+                      {teams.map(team => (
+                        <option key={team.id} value={team.id}>{team.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Issued Date *</label>
+                    <input
+                      type="date"
+                      value={issueInventoryForm.issuedDate}
+                      onChange={(e) => setIssueInventoryForm({...issueInventoryForm, issuedDate: e.target.value})}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Contact Person *</label>
+                    <input
+                      type="text"
+                      value={issueInventoryForm.contactPerson}
+                      onChange={(e) => setIssueInventoryForm({...issueInventoryForm, contactPerson: e.target.value})}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      placeholder="Person receiving inventory"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Contact Phone *</label>
+                    <input
+                      type="tel"
+                      value={issueInventoryForm.contactPhone}
+                      onChange={(e) => setIssueInventoryForm({...issueInventoryForm, contactPhone: e.target.value})}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      placeholder="Phone number"
+                      required
+                    />
+                  </div>
+
+                  <div className="border-t pt-4">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Inventory Items</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Gita Telugu</label>
+                        <input
+                          type="number"
+                          value={issueInventoryForm.gitaTelugu || ''}
+                          onChange={(e) => setIssueInventoryForm({...issueInventoryForm, gitaTelugu: e.target.value})}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                          min="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Booklet Telugu</label>
+                        <input
+                          type="number"
+                          value={issueInventoryForm.bookletTelugu || ''}
+                          onChange={(e) => setIssueInventoryForm({...issueInventoryForm, bookletTelugu: e.target.value})}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                          min="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Gita English</label>
+                        <input
+                          type="number"
+                          value={issueInventoryForm.gitaEnglish || ''}
+                          onChange={(e) => setIssueInventoryForm({...issueInventoryForm, gitaEnglish: e.target.value})}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                          min="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Booklet English</label>
+                        <input
+                          type="number"
+                          value={issueInventoryForm.bookletEnglish || ''}
+                          onChange={(e) => setIssueInventoryForm({...issueInventoryForm, bookletEnglish: e.target.value})}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                          min="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Calendar</label>
+                        <input
+                          type="number"
+                          value={issueInventoryForm.calendar || ''}
+                          onChange={(e) => setIssueInventoryForm({...issueInventoryForm, calendar: e.target.value})}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                          min="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Chikki</label>
+                        <input
+                          type="number"
+                          value={issueInventoryForm.chikki || ''}
+                          onChange={(e) => setIssueInventoryForm({...issueInventoryForm, chikki: e.target.value})}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                          min="0"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end space-x-3 pt-4">
+                    <button
+                      onClick={() => {
+                        setShowModal(false);
+                      }}
+                      className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={issueInventoryToTeam}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      Issue Inventory
                     </button>
                   </div>
                 </div>
