@@ -818,23 +818,31 @@ const addTeam = async () => {
       const currentInventory = teamSnap.data().inventory || {};
       const issueHistory = teamSnap.data().issueHistory || [];
       
+      // Parse issue values as integers to prevent string concatenation
+      const parsedGitaTelugu = parseInt(issueInventoryForm.gitaTelugu) || 0;
+      const parsedGitaEnglish = parseInt(issueInventoryForm.gitaEnglish) || 0;
+      const parsedBookletTelugu = parseInt(issueInventoryForm.bookletTelugu) || 0;
+      const parsedBookletEnglish = parseInt(issueInventoryForm.bookletEnglish) || 0;
+      const parsedCalendar = parseInt(issueInventoryForm.calendar) || 0;
+      const parsedChikki = parseInt(issueInventoryForm.chikki) || 0;
+
       // Calculate new inventory
       const updatedInventory = {
-        gitaTelugu: (currentInventory.gitaTelugu || 0) + (issueInventoryForm.gitaTelugu || 0),
-        bookletTelugu: (currentInventory.bookletTelugu || 0) + (issueInventoryForm.bookletTelugu || 0),
-        gitaEnglish: (currentInventory.gitaEnglish || 0) + (issueInventoryForm.gitaEnglish || 0),
-        bookletEnglish: (currentInventory.bookletEnglish || 0) + (issueInventoryForm.bookletEnglish || 0),
-        calendar: (currentInventory.calendar || 0) + (issueInventoryForm.calendar || 0),
-        chikki: (currentInventory.chikki || 0) + (issueInventoryForm.chikki || 0)
+        gitaTelugu: (currentInventory.gitaTelugu || 0) + parsedGitaTelugu,
+        bookletTelugu: (currentInventory.bookletTelugu || 0) + parsedBookletTelugu,
+        gitaEnglish: (currentInventory.gitaEnglish || 0) + parsedGitaEnglish,
+        bookletEnglish: (currentInventory.bookletEnglish || 0) + parsedBookletEnglish,
+        calendar: (currentInventory.calendar || 0) + parsedCalendar,
+        chikki: (currentInventory.chikki || 0) + parsedChikki
       };
       
       // Calculate total sets
-      const totalSets = (issueInventoryForm.gitaTelugu || 0) + 
-                        (issueInventoryForm.gitaEnglish || 0) +
-                        (issueInventoryForm.bookletTelugu || 0) +
-                        (issueInventoryForm.bookletEnglish || 0) +
-                        (issueInventoryForm.calendar || 0) +
-                        (issueInventoryForm.chikki || 0);
+      const totalSets = parsedGitaTelugu + 
+                        parsedGitaEnglish +
+                        parsedBookletTelugu +
+                        parsedBookletEnglish +
+                        parsedCalendar +
+                        parsedChikki;
       
       // Add to issue history
       const newIssue = {
@@ -905,6 +913,47 @@ const addTeam = async () => {
     const difference = expectedAmount - totalSettled;
     
     return { totalCollected, totalSettled, expectedAmount, difference };
+  };
+
+  // Calculate total inventory items issued to a team
+  const getTeamIssuedInventory = (team) => {
+    const issueHistory = team.issueHistory || [];
+    let totalItems = 0;
+    
+    issueHistory.forEach(issue => {
+      totalItems += (issue.gitaTelugu || 0) + 
+                    (issue.gitaEnglish || 0);
+    });
+    
+    return totalItems;
+  };
+
+  // Get money settlement summary for all teams
+  const getMoneySettlementSummary = () => {
+    return teams.map(team => {
+      const totalInventoryIssued = getTeamIssuedInventory(team);
+      const teamSchools = schools.filter(s => s.teamId === team.id);
+      
+      // Calculate total sets distributed (for expected money)
+      const totalNetSets = teamSchools.reduce((sum, school) => {
+        const netTelugu = (school.teluguSetsIssued || 0) - (school.teluguSetsTakenBack || 0);
+        const netEnglish = (school.englishSetsIssued || 0) - (school.englishSetsTakenBack || 0);
+        const freeSets = school.freeSetsGiven || 0;
+        return sum + netTelugu + netEnglish + freeSets;
+      }, 0);
+      
+      const expectedSettlement = totalNetSets * perSetPrice;
+      const totalMoneySettled = team.totalMoneySettled || 0;
+      
+      return {
+        teamId: team.id,
+        teamName: team.name,
+        totalInventoryIssued,
+        expectedSettlement,
+        totalMoneySettled,
+        balance: expectedSettlement - totalMoneySettled
+      };
+    });
   };
 
   const toggleMoneySettled = async (schoolId) => {
@@ -997,11 +1046,35 @@ const addTeam = async () => {
   const approveMoneySettlement = async (settlementId) => {
     try {
       const settlementRef = doc(db, 'moneySettlements', settlementId);
+      const settlementSnap = await getDoc(settlementRef);
+      
+      if (!settlementSnap.exists()) {
+        alert('Settlement not found');
+        return;
+      }
+
+      const settlementData = settlementSnap.data();
+      
+      // Update settlement status
       await updateDoc(settlementRef, {
         status: 'approved',
         approvedAt: new Date().toISOString(),
         approvedBy: currentUser.uid
       });
+
+      // Update team's total money settled
+      if (settlementData.teamId) {
+        const teamRef = doc(db, 'teams', settlementData.teamId);
+        const teamSnap = await getDoc(teamRef);
+        
+        if (teamSnap.exists()) {
+          const currentTotalSettled = (teamSnap.data().totalMoneySettled || 0);
+          await updateDoc(teamRef, {
+            totalMoneySettled: currentTotalSettled + parseFloat(settlementData.amount)
+          });
+        }
+      }
+
       alert('Money settlement approved!');
     } catch (error) {
       console.error('Error approving settlement:', error);
@@ -2047,14 +2120,54 @@ const addTeam = async () => {
             </div>
 
             {currentUser.role === 'admin' ? (
-              <div className="bg-white rounded-lg shadow-md overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Team</th>
-                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Amount</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Method</th>
+              <>
+                {/* Money Settlement Summary Table */}
+                <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                  <div className="p-4 bg-orange-50 border-b">
+                    <h3 className="text-lg font-semibold text-orange-900">Team Settlement Summary</h3>
+                    <p className="text-sm text-orange-700">Overview of settlements by team</p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50 border-b">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Team</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Total Inventory Issued</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Expected Settlement (₹)</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Total Money Settled (₹)</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Balance (₹)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {getMoneySettlementSummary().map((summary, idx) => (
+                          <tr key={idx} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{summary.teamName}</td>
+                            <td className="px-4 py-3 text-sm text-right text-gray-700">{summary.totalInventoryIssued}</td>
+                            <td className="px-4 py-3 text-sm text-right text-purple-700 font-semibold">₹{summary.expectedSettlement.toLocaleString()}</td>
+                            <td className="px-4 py-3 text-sm text-right text-green-700 font-semibold">₹{summary.totalMoneySettled.toLocaleString()}</td>
+                            <td className={`px-4 py-3 text-sm text-right font-semibold ${summary.balance >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                              {summary.balance >= 0 ? '+' : ''}₹{summary.balance.toLocaleString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Individual Settlement Requests */}
+                <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                  <div className="p-4 border-b bg-gray-50">
+                    <h3 className="text-lg font-semibold text-gray-800">Pending Settlement Requests</h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50 border-b">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Team</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Amount</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Method</th>
                       <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Status</th>
                       <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Action</th>
                     </tr>
@@ -2088,13 +2201,15 @@ const addTeam = async () => {
                   </tbody>
                 </table>
                 
-                {moneySettlements.length === 0 && (
-                  <div className="text-center py-12 text-gray-500">
-                    <DollarSign className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p>No money settlements submitted</p>
+                    {moneySettlements.length === 0 && (
+                      <div className="text-center py-12 text-gray-500">
+                        <DollarSign className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                        <p>No money settlements submitted</p>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                </div>
+              </>
             ) : (
               <div className="bg-white rounded-lg shadow-md p-6">
                 <h3 className="text-lg font-semibold text-gray-800 mb-4">Your Settlement History</h3>
