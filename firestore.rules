@@ -12,10 +12,7 @@ service cloud.firestore {
                                         request.auth.token.email == 'admin@gmail.com';
       // Team members can update
       allow update: if request.auth != null && 
-                              request.auth.token.email != 'admin@gmail.com' &&
-                              exists(/databases/$(database)/documents/teams/$(request.auth.uid)) &&
-                              get(/databases/$(database)/documents/teams/$(request.auth.uid)).data.role == 'team' &&
-                              resource.data.teamId == request.auth.uid;
+                              request.auth.uid == teamId;
     }
     
     // Schools collection
