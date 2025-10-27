@@ -2354,148 +2354,137 @@ const addTeam = async () => {
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         {/* Money Collected Increment */}
-                        <div className="flex gap-2">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Money Collected</label>
                           <input
                             type="number"
                             placeholder="Add amount"
                             value={incrementalUpdate.moneyCollected || ''}
                             onChange={(e) => setIncrementalUpdate({...incrementalUpdate, moneyCollected: e.target.value})}
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
                           />
-                          <button
-                            type="button"
-                            onClick={() => addIncrementalUpdate('moneyCollected', incrementalUpdate.moneyCollected)}
-                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
-                          >
-                            Add ₹
-                          </button>
                         </div>
 
                         {/* Telugu Sets Distributed Increment */}
-                        <div className="flex gap-2">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Telugu Sets Distributed</label>
                           <input
                             type="number"
                             placeholder="Add telugu sets"
                             value={incrementalUpdate.teluguSetsDistributed || ''}
                             onChange={(e) => setIncrementalUpdate({...incrementalUpdate, teluguSetsDistributed: e.target.value})}
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
                           />
-                          <button
-                            type="button"
-                            onClick={() => addIncrementalUpdate('teluguSetsDistributed', incrementalUpdate.teluguSetsDistributed)}
-                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
-                          >
-                            Add
-                          </button>
                         </div>
 
                         {/* English Sets Distributed Increment */}
-                        <div className="flex gap-2">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">English Sets Distributed</label>
                           <input
                             type="number"
                             placeholder="Add english sets"
                             value={incrementalUpdate.englishSetsDistributed || ''}
                             onChange={(e) => setIncrementalUpdate({...incrementalUpdate, englishSetsDistributed: e.target.value})}
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
                           />
-                          <button
-                            type="button"
-                            onClick={() => addIncrementalUpdate('englishSetsDistributed', incrementalUpdate.englishSetsDistributed)}
-                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
-                          >
-                            Add
-                          </button>
                         </div>
 
                         {/* Telugu Sets Issued Increment */}
-                        <div className="flex gap-2">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Telugu Sets Issued</label>
                           <input
                             type="number"
                             placeholder="Add telugu sets issued"
                             value={incrementalUpdate.teluguSetsIssued || ''}
                             onChange={(e) => setIncrementalUpdate({...incrementalUpdate, teluguSetsIssued: e.target.value})}
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
                           />
-                          <button
-                            type="button"
-                            onClick={() => addIncrementalUpdate('teluguSetsIssued', incrementalUpdate.teluguSetsIssued)}
-                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                          >
-                            Add
-                          </button>
                         </div>
 
                         {/* English Sets Issued Increment */}
-                        <div className="flex gap-2">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">English Sets Issued</label>
                           <input
                             type="number"
                             placeholder="Add english sets issued"
                             value={incrementalUpdate.englishSetsIssued || ''}
                             onChange={(e) => setIncrementalUpdate({...incrementalUpdate, englishSetsIssued: e.target.value})}
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
                           />
-                          <button
-                            type="button"
-                            onClick={() => addIncrementalUpdate('englishSetsIssued', incrementalUpdate.englishSetsIssued)}
-                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                          >
-                            Add
-                          </button>
                         </div>
 
                         {/* Telugu Sets Taken Back Increment */}
-                        <div className="flex gap-2">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Telugu Sets Taken Back</label>
                           <input
                             type="number"
                             placeholder="Add telugu returned"
                             value={incrementalUpdate.teluguSetsTakenBack || ''}
                             onChange={(e) => setIncrementalUpdate({...incrementalUpdate, teluguSetsTakenBack: e.target.value})}
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
                           />
-                          <button
-                            type="button"
-                            onClick={() => addIncrementalUpdate('teluguSetsTakenBack', incrementalUpdate.teluguSetsTakenBack)}
-                            className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium"
-                          >
-                            Add
-                          </button>
                         </div>
 
                         {/* English Sets Taken Back Increment */}
-                        <div className="flex gap-2">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">English Sets Taken Back</label>
                           <input
                             type="number"
                             placeholder="Add english returned"
                             value={incrementalUpdate.englishSetsTakenBack || ''}
                             onChange={(e) => setIncrementalUpdate({...incrementalUpdate, englishSetsTakenBack: e.target.value})}
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
                           />
-                          <button
-                            type="button"
-                            onClick={() => addIncrementalUpdate('englishSetsTakenBack', incrementalUpdate.englishSetsTakenBack)}
-                            className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium"
-                          >
-                            Add
-                          </button>
                         </div>
 
                         {/* Free Sets Increment */}
-                        <div className="flex gap-2">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Free Sets Given</label>
                           <input
                             type="number"
                             placeholder="Add free sets"
                             value={incrementalUpdate.freeSetsGiven || ''}
                             onChange={(e) => setIncrementalUpdate({...incrementalUpdate, freeSetsGiven: e.target.value})}
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
                           />
-                          <button
-                            type="button"
-                            onClick={() => addIncrementalUpdate('freeSetsGiven', incrementalUpdate.freeSetsGiven)}
-                            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
-                          >
-                            Add
-                          </button>
                         </div>
+                      </div>
+
+                      {/* Add All Updates Button */}
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const fields = ['moneyCollected', 'teluguSetsDistributed', 'englishSetsDistributed', 
+                                         'teluguSetsIssued', 'englishSetsIssued', 
+                                         'teluguSetsTakenBack', 'englishSetsTakenBack', 'freeSetsGiven'];
+                            
+                            // Add each non-zero field
+                            fields.forEach(field => {
+                              const value = Number(incrementalUpdate[field]) || 0;
+                              if (value > 0) {
+                                addIncrementalUpdate(field, value);
+                              }
+                            });
+
+                            // Reset all fields to 0 after adding
+                            setIncrementalUpdate({
+                              ...incrementalUpdate,
+                              moneyCollected: 0,
+                              teluguSetsDistributed: 0,
+                              englishSetsDistributed: 0,
+                              teluguSetsIssued: 0,
+                              englishSetsIssued: 0,
+                              teluguSetsTakenBack: 0,
+                              englishSetsTakenBack: 0,
+                              freeSetsGiven: 0
+                            });
+                          }}
+                          className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium flex items-center"
+                        >
+                          <Plus className="w-4 h-4 mr-2" />
+                          Add All Updates
+                        </button>
                       </div>
 
                       {/* Display recent updates */}
