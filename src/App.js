@@ -137,6 +137,17 @@ const GitaDistributionPortal = () => {
     updates: [] // Array to track daily updates
   });
 
+  // State for incremental updates in the update modal
+  const [incrementalUpdate, setIncrementalUpdate] = useState({
+    teluguSetsDistributed: 0,
+    englishSetsDistributed: 0,
+    teluguSetsTakenBack: 0,
+    englishSetsTakenBack: 0,
+    freeSetsGiven: 0,
+    moneyCollected: 0,
+    date: new Date().toISOString().split('T')[0]
+  });
+
   const [teamForm, setTeamForm] = useState({
     name: '', username: '', password: '', contact: '',
     inventory: {
@@ -878,6 +889,46 @@ const addTeam = async () => {
       contactNumber: '', email: '', notes: '', date: new Date().toISOString().split('T')[0],
       payments: [], updates: []
     });
+    // Reset incremental update state
+    setIncrementalUpdate({
+      teluguSetsDistributed: 0,
+      englishSetsDistributed: 0,
+      teluguSetsTakenBack: 0,
+      englishSetsTakenBack: 0,
+      freeSetsGiven: 0,
+      moneyCollected: 0,
+      date: new Date().toISOString().split('T')[0]
+    });
+  };
+
+  // Function to add incremental update
+  const addIncrementalUpdate = (field, value) => {
+    const update = {
+      field,
+      value: parseFloat(value) || 0,
+      date: incrementalUpdate.date,
+      timestamp: new Date().toISOString()
+    };
+    
+    // Add to updates array
+    const updatedSchoolForm = {
+      ...schoolForm,
+      updates: [...(schoolForm.updates || []), update]
+    };
+    
+    // Update the main field with new total
+    const newValue = (schoolForm[field] || 0) + update.value;
+    updatedSchoolForm[field] = newValue;
+    
+    setSchoolForm(updatedSchoolForm);
+    
+    // Reset the incremental input field
+    setIncrementalUpdate({
+      ...incrementalUpdate,
+      [field]: 0
+    });
+    
+    alert(`Added ${update.value} to ${field}. New total: ${newValue}`);
   };
 
   const resetTeamForm = () => {
@@ -1087,6 +1138,12 @@ const addTeam = async () => {
               className={`px-6 py-3 font-medium ${activeView === 'schools' ? 'text-orange-600 border-b-2 border-orange-600' : 'text-gray-600 hover:text-orange-600'}`}
             >
               Schools
+            </button>
+            <button
+              onClick={() => setActiveView('schoolUpdates')}
+              className={`px-6 py-3 font-medium ${activeView === 'schoolUpdates' ? 'text-orange-600 border-b-2 border-orange-600' : 'text-gray-600 hover:text-orange-600'}`}
+            >
+              School Updates
             </button>
             {currentUser.role === 'admin' && (
               <>
@@ -1398,6 +1455,173 @@ const addTeam = async () => {
                     <p>No schools found</p>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* School Updates View */}
+        {activeView === 'schoolUpdates' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-800">School Updates</h2>
+              <div className="flex items-center space-x-2 text-orange-600">
+                <Package className="w-6 h-6" />
+                <span className="text-sm font-medium">Incremental Updates History</span>
+              </div>
+            </div>
+
+            {/* Filters */}
+            <div className="bg-white rounded-lg shadow-md p-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Search School</label>
+                  <input
+                    type="text"
+                    placeholder="Search by school or area..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                  />
+                </div>
+
+                {currentUser.role === 'admin' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Team</label>
+                    <select
+                      value={selectedTeam || ''}
+                      onChange={(e) => setSelectedTeam(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                    >
+                      <option value="">All Teams</option>
+                      {teams.map(team => (
+                        <option key={team.id} value={team.id}>{team.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Date Range</label>
+                  <input
+                    type="date"
+                    value={dateFilter.start}
+                    onChange={(e) => setDateFilter({...dateFilter, start: e.target.value})}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                    placeholder="Start Date"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Updates List */}
+            <div className="bg-white rounded-lg shadow-md overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-orange-100">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Date & Time</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">School</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Area</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Field</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Increment Value</th>
+                      {currentUser.role === 'admin' && (
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Team</th>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {(() => {
+                      // Get all schools that have updates
+                      const schoolsWithUpdates = schools
+                        .filter(school => school.updates && school.updates.length > 0)
+                        .filter(school => {
+                          // Filter by team (if admin)
+                          if (currentUser.role === 'admin' && selectedTeam) {
+                            return school.teamId === selectedTeam;
+                          }
+                          // Filter by current user's team if team member
+                          if (currentUser.role === 'team') {
+                            return school.teamId === currentUser.uid;
+                          }
+                          return true;
+                        })
+                        .filter(school => {
+                          // Filter by search term
+                          const searchLower = searchTerm.toLowerCase();
+                          return searchLower === '' || 
+                                 school.schoolName.toLowerCase().includes(searchLower) ||
+                                 school.areaName.toLowerCase().includes(searchLower);
+                        })
+                        .filter(school => {
+                          // Filter by date range
+                          if (dateFilter.start && dateFilter.end) {
+                            return school.updates.some(update => {
+                              const updateDate = new Date(update.date);
+                              return updateDate >= new Date(dateFilter.start) && 
+                                     updateDate <= new Date(dateFilter.end);
+                            });
+                          } else if (dateFilter.start) {
+                            return school.updates.some(update => {
+                              const updateDate = new Date(update.date);
+                              return updateDate >= new Date(dateFilter.start);
+                            });
+                          }
+                          return true;
+                        });
+
+                      // Flatten updates with school info
+                      const allUpdates = schoolsWithUpdates.flatMap(school => 
+                        (school.updates || []).map(update => ({
+                          ...update,
+                          schoolId: school.id,
+                          schoolName: school.schoolName,
+                          areaName: school.areaName,
+                          teamId: school.teamId,
+                          teamName: teams.find(t => t.id === school.teamId)?.name || 'Unknown'
+                        }))
+                      );
+
+                      // Sort by timestamp (newest first)
+                      allUpdates.sort((a, b) => 
+                        new Date(b.timestamp) - new Date(a.timestamp)
+                      );
+
+                      if (allUpdates.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan={currentUser.role === 'admin' ? 6 : 5} className="px-4 py-12 text-center text-gray-500">
+                              <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                              <p>No updates found</p>
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      return allUpdates.map((update, idx) => (
+                        <tr key={idx} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm text-gray-600">
+                            <div>{new Date(update.date).toLocaleDateString()}</div>
+                            <div className="text-xs text-gray-400">{new Date(update.timestamp).toLocaleTimeString()}</div>
+                          </td>
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{update.schoolName}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{update.areaName}</td>
+                          <td className="px-4 py-3 text-sm">
+                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium capitalize">
+                              {update.field.replace(/([A-Z])/g, ' $1').trim()}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-right font-semibold text-green-600">
+                            +{typeof update.value === 'number' ? update.value : parseFloat(update.value)}
+                          </td>
+                          {currentUser.role === 'admin' && (
+                            <td className="px-4 py-3 text-sm text-gray-600">{update.teamName}</td>
+                          )}
+                        </tr>
+                      ));
+                    })()}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
@@ -2114,6 +2338,154 @@ const addTeam = async () => {
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
                       />
                     </div>
+                  </div>
+
+                  {/* Incremental Updates Section - Only shown when editing */}
+                  {editingItem && (
+                    <div className="bg-orange-50 p-4 rounded-lg border-2 border-orange-200">
+                      <h4 className="text-lg font-semibold text-orange-800 mb-4 flex items-center">
+                        <Plus className="w-5 h-5 mr-2" />
+                        Incremental Updates (Add Daily Increments)
+                      </h4>
+                      
+                      <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Update Date</label>
+                        <input
+                          type="date"
+                          value={incrementalUpdate.date}
+                          onChange={(e) => setIncrementalUpdate({...incrementalUpdate, date: e.target.value})}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        {/* Money Collected Increment */}
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            placeholder="Add amount"
+                            value={incrementalUpdate.moneyCollected || ''}
+                            onChange={(e) => setIncrementalUpdate({...incrementalUpdate, moneyCollected: e.target.value})}
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => addIncrementalUpdate('moneyCollected', incrementalUpdate.moneyCollected)}
+                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                          >
+                            Add ₹
+                          </button>
+                        </div>
+
+                        {/* Telugu Sets Distributed Increment */}
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            placeholder="Add telugu sets"
+                            value={incrementalUpdate.teluguSetsDistributed || ''}
+                            onChange={(e) => setIncrementalUpdate({...incrementalUpdate, teluguSetsDistributed: e.target.value})}
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => addIncrementalUpdate('teluguSetsDistributed', incrementalUpdate.teluguSetsDistributed)}
+                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                          >
+                            Add
+                          </button>
+                        </div>
+
+                        {/* English Sets Distributed Increment */}
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            placeholder="Add english sets"
+                            value={incrementalUpdate.englishSetsDistributed || ''}
+                            onChange={(e) => setIncrementalUpdate({...incrementalUpdate, englishSetsDistributed: e.target.value})}
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => addIncrementalUpdate('englishSetsDistributed', incrementalUpdate.englishSetsDistributed)}
+                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                          >
+                            Add
+                          </button>
+                        </div>
+
+                        {/* Telugu Sets Taken Back Increment */}
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            placeholder="Add telugu returned"
+                            value={incrementalUpdate.teluguSetsTakenBack || ''}
+                            onChange={(e) => setIncrementalUpdate({...incrementalUpdate, teluguSetsTakenBack: e.target.value})}
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => addIncrementalUpdate('teluguSetsTakenBack', incrementalUpdate.teluguSetsTakenBack)}
+                            className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium"
+                          >
+                            Add
+                          </button>
+                        </div>
+
+                        {/* English Sets Taken Back Increment */}
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            placeholder="Add english returned"
+                            value={incrementalUpdate.englishSetsTakenBack || ''}
+                            onChange={(e) => setIncrementalUpdate({...incrementalUpdate, englishSetsTakenBack: e.target.value})}
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => addIncrementalUpdate('englishSetsTakenBack', incrementalUpdate.englishSetsTakenBack)}
+                            className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium"
+                          >
+                            Add
+                          </button>
+                        </div>
+
+                        {/* Free Sets Increment */}
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            placeholder="Add free sets"
+                            value={incrementalUpdate.freeSetsGiven || ''}
+                            onChange={(e) => setIncrementalUpdate({...incrementalUpdate, freeSetsGiven: e.target.value})}
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => addIncrementalUpdate('freeSetsGiven', incrementalUpdate.freeSetsGiven)}
+                            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
+                          >
+                            Add
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Display recent updates */}
+                      {schoolForm.updates && schoolForm.updates.length > 0 && (
+                        <div className="mt-4 p-3 bg-white rounded border">
+                          <h5 className="text-sm font-semibold text-gray-700 mb-2">Recent Increments:</h5>
+                          <div className="space-y-1 text-xs">
+                            {schoolForm.updates.slice(-3).map((update, idx) => (
+                              <div key={idx} className="flex justify-between text-gray-600">
+                                <span>{update.field}: +{update.value}</span>
+                                <span>{new Date(update.date).toLocaleDateString()}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Telugu Sets Issued</label>
