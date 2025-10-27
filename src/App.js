@@ -1522,18 +1522,11 @@ const addTeam = async () => {
                 <table className="w-full">
                   <thead className="bg-orange-100">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Date</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Time</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">School</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Date & School</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Area</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Telugu Distributed</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">English Distributed</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Telugu Issued</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">English Issued</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Telugu Taken Back</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">English Taken Back</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Free Sets</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Money Collected</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Time</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Field</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Increment</th>
                       {currentUser.role === 'admin' && (
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Team</th>
                       )}
@@ -1565,28 +1558,41 @@ const addTeam = async () => {
                           return true;
                         });
 
-                      // Flatten all updates for all schools
-                      const allUpdates = schoolsWithUpdates.flatMap(school =>
-                        (school.updates || []).map(update => ({
-                          schoolId: school.id,
-                          schoolName: school.schoolName,
-                          areaName: school.areaName,
-                          teamId: school.teamId,
-                          teamName: teams.find(t => t.id === school.teamId)?.name || 'Unknown',
-                          date: update.date,
-                          timestamp: update.timestamp,
-                          field: update.field,
-                          value: Number(update.value) || 0
-                        }))
-                      );
+                      // Group updates by school + date, but keep each update as its own row under the group
+                      const grouped = {};
+                      schoolsWithUpdates.forEach(school => {
+                        (school.updates || []).forEach(update => {
+                          const key = `${school.id}_${update.date}`;
+                          if (!grouped[key]) {
+                            grouped[key] = {
+                              schoolId: school.id,
+                              schoolName: school.schoolName,
+                              areaName: school.areaName,
+                              teamId: school.teamId,
+                              teamName: teams.find(t => t.id === school.teamId)?.name || 'Unknown',
+                              date: update.date,
+                              updates: []
+                            };
+                          }
 
-                      // Sort by timestamp (newest first)
-                      allUpdates.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                          grouped[key].updates.push({
+                            timestamp: update.timestamp,
+                            field: update.field,
+                            value: Number(update.value) || 0
+                          });
+                        });
+                      });
 
-                      if (allUpdates.length === 0) {
+                      // Convert to array and sort groups by most recent update
+                      const groupedArray = Object.values(grouped).map(g => ({
+                        ...g,
+                        latestTimestamp: g.updates.reduce((max, u) => new Date(u.timestamp) > new Date(max) ? u.timestamp : max, g.updates[0]?.timestamp || g.date)
+                      })).sort((a, b) => new Date(b.latestTimestamp) - new Date(a.latestTimestamp));
+
+                      if (groupedArray.length === 0) {
                         return (
                           <tr>
-                            <td colSpan={currentUser.role === 'admin' ? 11 : 10} className="px-4 py-12 text-center text-gray-500">
+                            <td colSpan={currentUser.role === 'admin' ? 6 : 5} className="px-4 py-12 text-center text-gray-500">
                               <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
                               <p>No updates found</p>
                             </td>
@@ -1594,24 +1600,38 @@ const addTeam = async () => {
                         );
                       }
 
-                      return allUpdates.map((update, idx) => (
-                        <tr key={idx} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm text-gray-600">{new Date(update.date).toLocaleDateString()}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600">{new Date(update.timestamp).toLocaleTimeString()}</td>
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{update.schoolName}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600">{update.areaName}</td>
-                          <td className="px-4 py-3 text-sm text-right font-semibold text-green-600">{update.field === 'teluguSetsDistributed' ? update.value : ''}</td>
-                          <td className="px-4 py-3 text-sm text-right font-semibold text-green-600">{update.field === 'englishSetsDistributed' ? update.value : ''}</td>
-                          <td className="px-4 py-3 text-sm text-right font-semibold text-blue-600">{update.field === 'teluguSetsIssued' ? update.value : ''}</td>
-                          <td className="px-4 py-3 text-sm text-right font-semibold text-blue-600">{update.field === 'englishSetsIssued' ? update.value : ''}</td>
-                          <td className="px-4 py-3 text-sm text-right font-semibold text-red-600">{update.field === 'teluguSetsTakenBack' ? update.value : ''}</td>
-                          <td className="px-4 py-3 text-sm text-right font-semibold text-red-600">{update.field === 'englishSetsTakenBack' ? update.value : ''}</td>
-                          <td className="px-4 py-3 text-sm text-right font-semibold text-blue-600">{update.field === 'freeSetsGiven' ? update.value : ''}</td>
-                          <td className="px-4 py-3 text-sm text-right font-semibold text-green-700">{update.field === 'moneyCollected' ? `₹${update.value.toLocaleString()}` : ''}</td>
-                          {currentUser.role === 'admin' && (
-                            <td className="px-4 py-3 text-sm text-gray-600">{update.teamName}</td>
-                          )}
-                        </tr>
+                      return groupedArray.map((group, gIdx) => (
+                        <React.Fragment key={gIdx}>
+                          {/* Group header row */}
+                          <tr className="bg-gray-50">
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{new Date(group.date).toLocaleDateString()} • {group.schoolName}</td>
+                            <td className="px-4 py-3 text-sm text-gray-600">{group.areaName}</td>
+                            <td className="px-4 py-3 text-sm text-gray-600">&nbsp;</td>
+                            <td className="px-4 py-3 text-sm text-gray-600">&nbsp;</td>
+                            <td className="px-4 py-3 text-sm text-gray-600">{group.updates.length} update{group.updates.length > 1 ? 's' : ''}</td>
+                            {currentUser.role === 'admin' && (
+                              <td className="px-4 py-3 text-sm text-gray-600">{group.teamName}</td>
+                            )}
+                          </tr>
+
+                          {/* Individual updates under the group */}
+                          {group.updates.sort((a,b)=> new Date(b.timestamp) - new Date(a.timestamp)).map((u, idx) => (
+                            <tr key={`${gIdx}-${idx}`} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 text-sm text-gray-600">&nbsp;</td>
+                              <td className="px-4 py-3 text-sm text-gray-600">&nbsp;</td>
+                              <td className="px-4 py-3 text-sm text-gray-600">{new Date(u.timestamp).toLocaleTimeString()}</td>
+                              <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                                <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium capitalize">
+                                  {u.field.replace(/([A-Z])/g, ' $1').trim()}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-right font-semibold text-green-600">{u.field === 'moneyCollected' ? `₹${u.value.toLocaleString()}` : `+${u.value}`}</td>
+                              {currentUser.role === 'admin' && (
+                                <td className="px-4 py-3 text-sm text-gray-600">{group.teamName}</td>
+                              )}
+                            </tr>
+                          ))}
+                        </React.Fragment>
                       ));
                     })()}
                   </tbody>
