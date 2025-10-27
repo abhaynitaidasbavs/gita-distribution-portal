@@ -1520,11 +1520,16 @@ const addTeam = async () => {
                 <table className="w-full">
                   <thead className="bg-orange-100">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Date & Time</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Date</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Time</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">School</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Area</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Field</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Increment Value</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Telugu Distributed</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">English Distributed</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Telugu Taken Back</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">English Taken Back</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Free Sets</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Money Collected</th>
                       {currentUser.role === 'admin' && (
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Team</th>
                       )}
@@ -1536,61 +1541,61 @@ const addTeam = async () => {
                       const schoolsWithUpdates = schools
                         .filter(school => school.updates && school.updates.length > 0)
                         .filter(school => {
-                          // Filter by team (if admin)
-                          if (currentUser.role === 'admin' && selectedTeam) {
-                            return school.teamId === selectedTeam;
-                          }
-                          // Filter by current user's team if team member
-                          if (currentUser.role === 'team') {
-                            return school.teamId === currentUser.uid;
-                          }
+                          if (currentUser.role === 'admin' && selectedTeam) return school.teamId === selectedTeam;
+                          if (currentUser.role === 'team') return school.teamId === currentUser.uid;
                           return true;
                         })
                         .filter(school => {
-                          // Filter by search term
                           const searchLower = searchTerm.toLowerCase();
-                          return searchLower === '' || 
-                                 school.schoolName.toLowerCase().includes(searchLower) ||
-                                 school.areaName.toLowerCase().includes(searchLower);
+                          return searchLower === '' || school.schoolName.toLowerCase().includes(searchLower) || school.areaName.toLowerCase().includes(searchLower);
                         })
                         .filter(school => {
-                          // Filter by date range
                           if (dateFilter.start && dateFilter.end) {
                             return school.updates.some(update => {
                               const updateDate = new Date(update.date);
-                              return updateDate >= new Date(dateFilter.start) && 
-                                     updateDate <= new Date(dateFilter.end);
+                              return updateDate >= new Date(dateFilter.start) && updateDate <= new Date(dateFilter.end);
                             });
                           } else if (dateFilter.start) {
-                            return school.updates.some(update => {
-                              const updateDate = new Date(update.date);
-                              return updateDate >= new Date(dateFilter.start);
-                            });
+                            return school.updates.some(update => new Date(update.date) >= new Date(dateFilter.start));
                           }
                           return true;
                         });
 
-                      // Flatten updates with school info
-                      const allUpdates = schoolsWithUpdates.flatMap(school => 
-                        (school.updates || []).map(update => ({
-                          ...update,
-                          schoolId: school.id,
-                          schoolName: school.schoolName,
-                          areaName: school.areaName,
-                          teamId: school.teamId,
-                          teamName: teams.find(t => t.id === school.teamId)?.name || 'Unknown'
-                        }))
-                      );
+                      // Group updates by school + date so one row represents all field increments for that school on that date
+                      const grouped = {};
+                      schoolsWithUpdates.forEach(school => {
+                        (school.updates || []).forEach(update => {
+                          const key = `${school.id}_${update.date}`;
+                          if (!grouped[key]) {
+                            grouped[key] = {
+                              schoolId: school.id,
+                              schoolName: school.schoolName,
+                              areaName: school.areaName,
+                              teamId: school.teamId,
+                              teamName: teams.find(t => t.id === school.teamId)?.name || 'Unknown',
+                              date: update.date,
+                              latestTimestamp: update.timestamp,
+                              fields: {}
+                            };
+                          }
 
-                      // Sort by timestamp (newest first)
-                      allUpdates.sort((a, b) => 
-                        new Date(b.timestamp) - new Date(a.timestamp)
-                      );
+                          // keep latest timestamp for the grouped row
+                          if (new Date(update.timestamp) > new Date(grouped[key].latestTimestamp)) {
+                            grouped[key].latestTimestamp = update.timestamp;
+                          }
 
-                      if (allUpdates.length === 0) {
+                          const fld = update.field;
+                          const val = Number(update.value) || 0;
+                          grouped[key].fields[fld] = (grouped[key].fields[fld] || 0) + val;
+                        });
+                      });
+
+                      const groupedArray = Object.values(grouped).sort((a, b) => new Date(b.latestTimestamp) - new Date(a.latestTimestamp));
+
+                      if (groupedArray.length === 0) {
                         return (
                           <tr>
-                            <td colSpan={currentUser.role === 'admin' ? 6 : 5} className="px-4 py-12 text-center text-gray-500">
+                            <td colSpan={currentUser.role === 'admin' ? 11 : 10} className="px-4 py-12 text-center text-gray-500">
                               <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
                               <p>No updates found</p>
                             </td>
@@ -1598,24 +1603,20 @@ const addTeam = async () => {
                         );
                       }
 
-                      return allUpdates.map((update, idx) => (
+                      return groupedArray.map((group, idx) => (
                         <tr key={idx} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm text-gray-600">
-                            <div>{new Date(update.date).toLocaleDateString()}</div>
-                            <div className="text-xs text-gray-400">{new Date(update.timestamp).toLocaleTimeString()}</div>
-                          </td>
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{update.schoolName}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600">{update.areaName}</td>
-                          <td className="px-4 py-3 text-sm">
-                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium capitalize">
-                              {update.field.replace(/([A-Z])/g, ' $1').trim()}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-right font-semibold text-green-600">
-                            +{typeof update.value === 'number' ? update.value : parseFloat(update.value)}
-                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{new Date(group.date).toLocaleDateString()}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{new Date(group.latestTimestamp).toLocaleTimeString()}</td>
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{group.schoolName}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{group.areaName}</td>
+                          <td className="px-4 py-3 text-sm text-right font-semibold text-green-600">{group.fields.teluguSetsDistributed || 0}</td>
+                          <td className="px-4 py-3 text-sm text-right font-semibold text-green-600">{group.fields.englishSetsDistributed || 0}</td>
+                          <td className="px-4 py-3 text-sm text-right font-semibold text-red-600">{group.fields.teluguSetsTakenBack || 0}</td>
+                          <td className="px-4 py-3 text-sm text-right font-semibold text-red-600">{group.fields.englishSetsTakenBack || 0}</td>
+                          <td className="px-4 py-3 text-sm text-right font-semibold text-blue-600">{group.fields.freeSetsGiven || 0}</td>
+                          <td className="px-4 py-3 text-sm text-right font-semibold text-green-700">₹{(group.fields.moneyCollected || 0).toLocaleString()}</td>
                           {currentUser.role === 'admin' && (
-                            <td className="px-4 py-3 text-sm text-gray-600">{update.teamName}</td>
+                            <td className="px-4 py-3 text-sm text-gray-600">{group.teamName}</td>
                           )}
                         </tr>
                       ));
