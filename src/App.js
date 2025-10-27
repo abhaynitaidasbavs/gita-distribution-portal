@@ -143,6 +143,8 @@ const GitaDistributionPortal = () => {
     englishSetsDistributed: 0,
     teluguSetsTakenBack: 0,
     englishSetsTakenBack: 0,
+    teluguSetsIssued: 0,
+    englishSetsIssued: 0,
     freeSetsGiven: 0,
     moneyCollected: 0,
     date: new Date().toISOString().split('T')[0]
@@ -1526,6 +1528,8 @@ const addTeam = async () => {
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Area</th>
                       <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Telugu Distributed</th>
                       <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">English Distributed</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Telugu Issued</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">English Issued</th>
                       <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Telugu Taken Back</th>
                       <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">English Taken Back</th>
                       <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Free Sets</th>
@@ -1561,38 +1565,25 @@ const addTeam = async () => {
                           return true;
                         });
 
-                      // Group updates by school + date so one row represents all field increments for that school on that date
-                      const grouped = {};
-                      schoolsWithUpdates.forEach(school => {
-                        (school.updates || []).forEach(update => {
-                          const key = `${school.id}_${update.date}`;
-                          if (!grouped[key]) {
-                            grouped[key] = {
-                              schoolId: school.id,
-                              schoolName: school.schoolName,
-                              areaName: school.areaName,
-                              teamId: school.teamId,
-                              teamName: teams.find(t => t.id === school.teamId)?.name || 'Unknown',
-                              date: update.date,
-                              latestTimestamp: update.timestamp,
-                              fields: {}
-                            };
-                          }
+                      // Flatten all updates for all schools
+                      const allUpdates = schoolsWithUpdates.flatMap(school =>
+                        (school.updates || []).map(update => ({
+                          schoolId: school.id,
+                          schoolName: school.schoolName,
+                          areaName: school.areaName,
+                          teamId: school.teamId,
+                          teamName: teams.find(t => t.id === school.teamId)?.name || 'Unknown',
+                          date: update.date,
+                          timestamp: update.timestamp,
+                          field: update.field,
+                          value: Number(update.value) || 0
+                        }))
+                      );
 
-                          // keep latest timestamp for the grouped row
-                          if (new Date(update.timestamp) > new Date(grouped[key].latestTimestamp)) {
-                            grouped[key].latestTimestamp = update.timestamp;
-                          }
+                      // Sort by timestamp (newest first)
+                      allUpdates.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-                          const fld = update.field;
-                          const val = Number(update.value) || 0;
-                          grouped[key].fields[fld] = (grouped[key].fields[fld] || 0) + val;
-                        });
-                      });
-
-                      const groupedArray = Object.values(grouped).sort((a, b) => new Date(b.latestTimestamp) - new Date(a.latestTimestamp));
-
-                      if (groupedArray.length === 0) {
+                      if (allUpdates.length === 0) {
                         return (
                           <tr>
                             <td colSpan={currentUser.role === 'admin' ? 11 : 10} className="px-4 py-12 text-center text-gray-500">
@@ -1603,20 +1594,22 @@ const addTeam = async () => {
                         );
                       }
 
-                      return groupedArray.map((group, idx) => (
+                      return allUpdates.map((update, idx) => (
                         <tr key={idx} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm text-gray-600">{new Date(group.date).toLocaleDateString()}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600">{new Date(group.latestTimestamp).toLocaleTimeString()}</td>
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{group.schoolName}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600">{group.areaName}</td>
-                          <td className="px-4 py-3 text-sm text-right font-semibold text-green-600">{group.fields.teluguSetsDistributed || 0}</td>
-                          <td className="px-4 py-3 text-sm text-right font-semibold text-green-600">{group.fields.englishSetsDistributed || 0}</td>
-                          <td className="px-4 py-3 text-sm text-right font-semibold text-red-600">{group.fields.teluguSetsTakenBack || 0}</td>
-                          <td className="px-4 py-3 text-sm text-right font-semibold text-red-600">{group.fields.englishSetsTakenBack || 0}</td>
-                          <td className="px-4 py-3 text-sm text-right font-semibold text-blue-600">{group.fields.freeSetsGiven || 0}</td>
-                          <td className="px-4 py-3 text-sm text-right font-semibold text-green-700">₹{(group.fields.moneyCollected || 0).toLocaleString()}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{new Date(update.date).toLocaleDateString()}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{new Date(update.timestamp).toLocaleTimeString()}</td>
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{update.schoolName}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{update.areaName}</td>
+                          <td className="px-4 py-3 text-sm text-right font-semibold text-green-600">{update.field === 'teluguSetsDistributed' ? update.value : ''}</td>
+                          <td className="px-4 py-3 text-sm text-right font-semibold text-green-600">{update.field === 'englishSetsDistributed' ? update.value : ''}</td>
+                          <td className="px-4 py-3 text-sm text-right font-semibold text-blue-600">{update.field === 'teluguSetsIssued' ? update.value : ''}</td>
+                          <td className="px-4 py-3 text-sm text-right font-semibold text-blue-600">{update.field === 'englishSetsIssued' ? update.value : ''}</td>
+                          <td className="px-4 py-3 text-sm text-right font-semibold text-red-600">{update.field === 'teluguSetsTakenBack' ? update.value : ''}</td>
+                          <td className="px-4 py-3 text-sm text-right font-semibold text-red-600">{update.field === 'englishSetsTakenBack' ? update.value : ''}</td>
+                          <td className="px-4 py-3 text-sm text-right font-semibold text-blue-600">{update.field === 'freeSetsGiven' ? update.value : ''}</td>
+                          <td className="px-4 py-3 text-sm text-right font-semibold text-green-700">{update.field === 'moneyCollected' ? `₹${update.value.toLocaleString()}` : ''}</td>
                           {currentUser.role === 'admin' && (
-                            <td className="px-4 py-3 text-sm text-gray-600">{group.teamName}</td>
+                            <td className="px-4 py-3 text-sm text-gray-600">{update.teamName}</td>
                           )}
                         </tr>
                       ));
@@ -2409,6 +2402,42 @@ const addTeam = async () => {
                             type="button"
                             onClick={() => addIncrementalUpdate('englishSetsDistributed', incrementalUpdate.englishSetsDistributed)}
                             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                          >
+                            Add
+                          </button>
+                        </div>
+
+                        {/* Telugu Sets Issued Increment */}
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            placeholder="Add telugu sets issued"
+                            value={incrementalUpdate.teluguSetsIssued || ''}
+                            onChange={(e) => setIncrementalUpdate({...incrementalUpdate, teluguSetsIssued: e.target.value})}
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => addIncrementalUpdate('teluguSetsIssued', incrementalUpdate.teluguSetsIssued)}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                          >
+                            Add
+                          </button>
+                        </div>
+
+                        {/* English Sets Issued Increment */}
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            placeholder="Add english sets issued"
+                            value={incrementalUpdate.englishSetsIssued || ''}
+                            onChange={(e) => setIncrementalUpdate({...incrementalUpdate, englishSetsIssued: e.target.value})}
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => addIncrementalUpdate('englishSetsIssued', incrementalUpdate.englishSetsIssued)}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
                           >
                             Add
                           </button>
