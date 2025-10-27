@@ -897,6 +897,8 @@ const addTeam = async () => {
       englishSetsDistributed: 0,
       teluguSetsTakenBack: 0,
       englishSetsTakenBack: 0,
+      teluguSetsIssued: 0,
+      englishSetsIssued: 0,
       freeSetsGiven: 0,
       moneyCollected: 0,
       date: new Date().toISOString().split('T')[0]
@@ -931,6 +933,58 @@ const addTeam = async () => {
     });
     
     alert(`Added ${update.value} to ${field}. New total: ${newValue}`);
+  };
+
+  // Add multiple incremental fields as a single update batch
+  const addAllIncrementalUpdates = () => {
+    const fields = ['moneyCollected', 'teluguSetsDistributed', 'englishSetsDistributed',
+                    'teluguSetsIssued', 'englishSetsIssued',
+                    'teluguSetsTakenBack', 'englishSetsTakenBack', 'freeSetsGiven'];
+
+    const values = {};
+    fields.forEach(f => {
+      const v = Number(incrementalUpdate[f]) || 0;
+      if (v > 0) values[f] = v;
+    });
+
+    if (Object.keys(values).length === 0) {
+      alert('No updates to add');
+      return;
+    }
+
+    const update = {
+      ...values,
+      date: incrementalUpdate.date,
+      timestamp: new Date().toISOString()
+    };
+
+    // Add to updates array as a single batch object
+    const updatedSchoolForm = {
+      ...schoolForm,
+      updates: [...(schoolForm.updates || []), update]
+    };
+
+    // Update main school totals for each provided field
+    Object.keys(values).forEach(k => {
+      updatedSchoolForm[k] = (Number(schoolForm[k]) || 0) + values[k];
+    });
+
+    setSchoolForm(updatedSchoolForm);
+
+    // Reset incremental inputs
+    setIncrementalUpdate({
+      ...incrementalUpdate,
+      moneyCollected: 0,
+      teluguSetsDistributed: 0,
+      englishSetsDistributed: 0,
+      teluguSetsIssued: 0,
+      englishSetsIssued: 0,
+      teluguSetsTakenBack: 0,
+      englishSetsTakenBack: 0,
+      freeSetsGiven: 0
+    });
+
+    alert('Updates added');
   };
 
   const resetTeamForm = () => {
@@ -1522,11 +1576,18 @@ const addTeam = async () => {
                 <table className="w-full">
                   <thead className="bg-orange-100">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Date & School</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Area</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Date</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Time</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Field</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Increment</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">School</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Area</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Telugu Distributed</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">English Distributed</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Telugu Issued</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">English Issued</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Telugu Taken Back</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">English Taken Back</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Free Sets</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Money Collected</th>
                       {currentUser.role === 'admin' && (
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Team</th>
                       )}
@@ -1558,41 +1619,56 @@ const addTeam = async () => {
                           return true;
                         });
 
-                      // Group updates by school + date, but keep each update as its own row under the group
-                      const grouped = {};
-                      schoolsWithUpdates.forEach(school => {
-                        (school.updates || []).forEach(update => {
-                          const key = `${school.id}_${update.date}`;
-                          if (!grouped[key]) {
-                            grouped[key] = {
-                              schoolId: school.id,
-                              schoolName: school.schoolName,
-                              areaName: school.areaName,
-                              teamId: school.teamId,
-                              teamName: teams.find(t => t.id === school.teamId)?.name || 'Unknown',
-                              date: update.date,
-                              updates: []
+                      // Flatten updates into one row per update object (batch) and pivot fields as columns
+                      const allUpdates = schoolsWithUpdates.flatMap(school =>
+                        (school.updates || []).map(update => {
+                          const isLegacy = !!update.field;
+                          const base = {
+                            schoolId: school.id,
+                            schoolName: school.schoolName,
+                            areaName: school.areaName,
+                            teamId: school.teamId,
+                            teamName: teams.find(t => t.id === school.teamId)?.name || 'Unknown',
+                            date: update.date,
+                            timestamp: update.timestamp
+                          };
+
+                          if (isLegacy) {
+                            return {
+                              ...base,
+                              teluguSetsDistributed: update.field === 'teluguSetsDistributed' ? Number(update.value) : 0,
+                              englishSetsDistributed: update.field === 'englishSetsDistributed' ? Number(update.value) : 0,
+                              teluguSetsIssued: update.field === 'teluguSetsIssued' ? Number(update.value) : 0,
+                              englishSetsIssued: update.field === 'englishSetsIssued' ? Number(update.value) : 0,
+                              teluguSetsTakenBack: update.field === 'teluguSetsTakenBack' ? Number(update.value) : 0,
+                              englishSetsTakenBack: update.field === 'englishSetsTakenBack' ? Number(update.value) : 0,
+                              freeSetsGiven: update.field === 'freeSetsGiven' ? Number(update.value) : 0,
+                              moneyCollected: update.field === 'moneyCollected' ? Number(update.value) : 0
                             };
                           }
 
-                          grouped[key].updates.push({
-                            timestamp: update.timestamp,
-                            field: update.field,
-                            value: Number(update.value) || 0
-                          });
-                        });
-                      });
+                          // Batch update object: map known keys
+                          return {
+                            ...base,
+                            teluguSetsDistributed: Number(update.teluguSetsDistributed) || 0,
+                            englishSetsDistributed: Number(update.englishSetsDistributed) || 0,
+                            teluguSetsIssued: Number(update.teluguSetsIssued) || 0,
+                            englishSetsIssued: Number(update.englishSetsIssued) || 0,
+                            teluguSetsTakenBack: Number(update.teluguSetsTakenBack) || 0,
+                            englishSetsTakenBack: Number(update.englishSetsTakenBack) || 0,
+                            freeSetsGiven: Number(update.freeSetsGiven) || 0,
+                            moneyCollected: Number(update.moneyCollected) || 0
+                          };
+                        })
+                      );
 
-                      // Convert to array and sort groups by most recent update
-                      const groupedArray = Object.values(grouped).map(g => ({
-                        ...g,
-                        latestTimestamp: g.updates.reduce((max, u) => new Date(u.timestamp) > new Date(max) ? u.timestamp : max, g.updates[0]?.timestamp || g.date)
-                      })).sort((a, b) => new Date(b.latestTimestamp) - new Date(a.latestTimestamp));
+                      // Sort by timestamp (newest first)
+                      allUpdates.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-                      if (groupedArray.length === 0) {
+                      if (allUpdates.length === 0) {
                         return (
                           <tr>
-                            <td colSpan={currentUser.role === 'admin' ? 6 : 5} className="px-4 py-12 text-center text-gray-500">
+                            <td colSpan={currentUser.role === 'admin' ? 13 : 12} className="px-4 py-12 text-center text-gray-500">
                               <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
                               <p>No updates found</p>
                             </td>
@@ -1600,38 +1676,24 @@ const addTeam = async () => {
                         );
                       }
 
-                      return groupedArray.map((group, gIdx) => (
-                        <React.Fragment key={gIdx}>
-                          {/* Group header row */}
-                          <tr className="bg-gray-50">
-                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{new Date(group.date).toLocaleDateString()} • {group.schoolName}</td>
-                            <td className="px-4 py-3 text-sm text-gray-600">{group.areaName}</td>
-                            <td className="px-4 py-3 text-sm text-gray-600">&nbsp;</td>
-                            <td className="px-4 py-3 text-sm text-gray-600">&nbsp;</td>
-                            <td className="px-4 py-3 text-sm text-gray-600">{group.updates.length} update{group.updates.length > 1 ? 's' : ''}</td>
-                            {currentUser.role === 'admin' && (
-                              <td className="px-4 py-3 text-sm text-gray-600">{group.teamName}</td>
-                            )}
-                          </tr>
-
-                          {/* Individual updates under the group */}
-                          {group.updates.sort((a,b)=> new Date(b.timestamp) - new Date(a.timestamp)).map((u, idx) => (
-                            <tr key={`${gIdx}-${idx}`} className="hover:bg-gray-50">
-                              <td className="px-4 py-3 text-sm text-gray-600">&nbsp;</td>
-                              <td className="px-4 py-3 text-sm text-gray-600">&nbsp;</td>
-                              <td className="px-4 py-3 text-sm text-gray-600">{new Date(u.timestamp).toLocaleTimeString()}</td>
-                              <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                                <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium capitalize">
-                                  {u.field.replace(/([A-Z])/g, ' $1').trim()}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-sm text-right font-semibold text-green-600">{u.field === 'moneyCollected' ? `₹${u.value.toLocaleString()}` : `+${u.value}`}</td>
-                              {currentUser.role === 'admin' && (
-                                <td className="px-4 py-3 text-sm text-gray-600">{group.teamName}</td>
-                              )}
-                            </tr>
-                          ))}
-                        </React.Fragment>
+                      return allUpdates.map((u, idx) => (
+                        <tr key={idx} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm text-gray-600">{new Date(u.date).toLocaleDateString()}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{new Date(u.timestamp).toLocaleTimeString()}</td>
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{u.schoolName}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{u.areaName}</td>
+                          <td className="px-4 py-3 text-sm text-right font-semibold text-green-600">{u.teluguSetsDistributed || 0}</td>
+                          <td className="px-4 py-3 text-sm text-right font-semibold text-green-600">{u.englishSetsDistributed || 0}</td>
+                          <td className="px-4 py-3 text-sm text-right font-semibold text-blue-600">{u.teluguSetsIssued || 0}</td>
+                          <td className="px-4 py-3 text-sm text-right font-semibold text-blue-600">{u.englishSetsIssued || 0}</td>
+                          <td className="px-4 py-3 text-sm text-right font-semibold text-red-600">{u.teluguSetsTakenBack || 0}</td>
+                          <td className="px-4 py-3 text-sm text-right font-semibold text-red-600">{u.englishSetsTakenBack || 0}</td>
+                          <td className="px-4 py-3 text-sm text-right font-semibold text-blue-600">{u.freeSetsGiven || 0}</td>
+                          <td className="px-4 py-3 text-sm text-right font-semibold text-green-700">{u.moneyCollected ? `₹${u.moneyCollected.toLocaleString()}` : 0}</td>
+                          {currentUser.role === 'admin' && (
+                            <td className="px-4 py-3 text-sm text-gray-600">{u.teamName}</td>
+                          )}
+                        </tr>
                       ));
                     })()}
                   </tbody>
@@ -2474,32 +2536,7 @@ const addTeam = async () => {
                       <div className="flex justify-end">
                         <button
                           type="button"
-                          onClick={() => {
-                            const fields = ['moneyCollected', 'teluguSetsDistributed', 'englishSetsDistributed', 
-                                         'teluguSetsIssued', 'englishSetsIssued', 
-                                         'teluguSetsTakenBack', 'englishSetsTakenBack', 'freeSetsGiven'];
-                            
-                            // Add each non-zero field
-                            fields.forEach(field => {
-                              const value = Number(incrementalUpdate[field]) || 0;
-                              if (value > 0) {
-                                addIncrementalUpdate(field, value);
-                              }
-                            });
-
-                            // Reset all fields to 0 after adding
-                            setIncrementalUpdate({
-                              ...incrementalUpdate,
-                              moneyCollected: 0,
-                              teluguSetsDistributed: 0,
-                              englishSetsDistributed: 0,
-                              teluguSetsIssued: 0,
-                              englishSetsIssued: 0,
-                              teluguSetsTakenBack: 0,
-                              englishSetsTakenBack: 0,
-                              freeSetsGiven: 0
-                            });
-                          }}
+                          onClick={addAllIncrementalUpdates}
                           className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium flex items-center"
                         >
                           <Plus className="w-4 h-4 mr-2" />
@@ -2514,7 +2551,15 @@ const addTeam = async () => {
                           <div className="space-y-1 text-xs">
                             {schoolForm.updates.slice(-3).map((update, idx) => (
                               <div key={idx} className="flex justify-between text-gray-600">
-                                <span>{update.field}: +{update.value}</span>
+                                <span>
+                                  {update.field
+                                    ? `${update.field}: +${update.value}`
+                                    : Object.entries(update)
+                                        .filter(([k]) => k !== 'date' && k !== 'timestamp')
+                                        .map(([k,v]) => `${k}: +${v}`)
+                                        .join(' • ')
+                                  }
+                                </span>
                                 <span>{new Date(update.date).toLocaleDateString()}</span>
                               </div>
                             ))}
