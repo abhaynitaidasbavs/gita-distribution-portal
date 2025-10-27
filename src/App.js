@@ -921,8 +921,8 @@ const addTeam = async () => {
     let totalItems = 0;
     
     issueHistory.forEach(issue => {
-      totalItems += (issue.gitaTelugu || 0) + 
-                    (issue.gitaEnglish || 0);
+      totalItems += parseInt(issue.gitaTelugu || 0) + 
+                    parseInt(issue.gitaEnglish || 0);
     });
     
     return totalItems;
@@ -936,14 +936,14 @@ const addTeam = async () => {
       
       // Calculate total sets distributed (for expected money)
       const totalNetSets = teamSchools.reduce((sum, school) => {
-        const netTelugu = (school.teluguSetsIssued || 0) - (school.teluguSetsTakenBack || 0);
-        const netEnglish = (school.englishSetsIssued || 0) - (school.englishSetsTakenBack || 0);
-        const freeSets = school.freeSetsGiven || 0;
+        const netTelugu = parseInt(school.teluguSetsIssued || 0) - parseInt(school.teluguSetsTakenBack || 0);
+        const netEnglish = parseInt(school.englishSetsIssued || 0) - parseInt(school.englishSetsTakenBack || 0);
+        const freeSets = parseInt(school.freeSetsGiven || 0);
         return sum + netTelugu + netEnglish + freeSets;
       }, 0);
       
       const expectedSettlement = totalNetSets * perSetPrice;
-      const totalMoneySettled = team.totalMoneySettled || 0;
+      const totalMoneySettled = parseInt(team.totalMoneySettled || 0);
       
       return {
         teamId: team.id,
@@ -2155,6 +2155,85 @@ const addTeam = async () => {
                   </div>
                 </div>
 
+                {/* Inventory Issuance History Table */}
+                <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                  <div className="p-4 bg-blue-50 border-b">
+                    <h3 className="text-lg font-semibold text-blue-900">Inventory Issuance History</h3>
+                    <p className="text-sm text-blue-700">Complete history of all inventory items issued to teams</p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50 border-b">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date Issued</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Team</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Gita Telugu</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Booklet Telugu</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Gita English</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Booklet English</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Calendar</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Chikki</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Total Items</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Contact Person</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Phone Number</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {(() => {
+                          // Get all issuance history from all teams
+                          const allIssues = teams.flatMap(team => {
+                            const issueHistory = team.issueHistory || [];
+                            return issueHistory.map(issue => ({
+                              ...issue,
+                              teamName: team.name,
+                              teamId: team.id
+                            }));
+                          });
+
+                          // Sort by date (newest first)
+                          allIssues.sort((a, b) => new Date(b.issuedDate) - new Date(a.issuedDate));
+
+                          if (allIssues.length === 0) {
+                            return (
+                              <tr>
+                                <td colSpan="11" className="px-4 py-12 text-center text-gray-500">
+                                  <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                                  <p>No inventory issuance records found</p>
+                                </td>
+                              </tr>
+                            );
+                          }
+
+                          return allIssues.map((issue, idx) => {
+                            const totalItems = (parseInt(issue.gitaTelugu) || 0) + 
+                                             (parseInt(issue.bookletTelugu) || 0) +
+                                             (parseInt(issue.gitaEnglish) || 0) +
+                                             (parseInt(issue.bookletEnglish) || 0) +
+                                             (parseInt(issue.calendar) || 0) +
+                                             (parseInt(issue.chikki) || 0);
+                            
+                            return (
+                              <tr key={idx} className="hover:bg-gray-50">
+                                <td className="px-4 py-3 text-sm text-gray-600">{new Date(issue.issuedDate).toLocaleDateString()}</td>
+                                <td className="px-4 py-3 text-sm font-medium text-gray-900">{issue.teamName}</td>
+                                <td className="px-4 py-3 text-sm text-right text-gray-700">{issue.gitaTelugu || 0}</td>
+                                <td className="px-4 py-3 text-sm text-right text-gray-700">{issue.bookletTelugu || 0}</td>
+                                <td className="px-4 py-3 text-sm text-right text-gray-700">{issue.gitaEnglish || 0}</td>
+                                <td className="px-4 py-3 text-sm text-right text-gray-700">{issue.bookletEnglish || 0}</td>
+                                <td className="px-4 py-3 text-sm text-right text-gray-700">{issue.calendar || 0}</td>
+                                <td className="px-4 py-3 text-sm text-right text-gray-700">{issue.chikki || 0}</td>
+                                <td className="px-4 py-3 text-sm text-right font-semibold text-green-700">{totalItems}</td>
+                                <td className="px-4 py-3 text-sm text-gray-700">{issue.contactPerson || 'N/A'}</td>
+                                <td className="px-4 py-3 text-sm text-gray-700">{issue.contactPhone || 'N/A'}</td>
+                              </tr>
+                            );
+                          });
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
                 {/* Individual Settlement Requests */}
                 <div className="bg-white rounded-lg shadow-md overflow-hidden">
                   <div className="p-4 border-b bg-gray-50">
@@ -2452,6 +2531,85 @@ const addTeam = async () => {
                       </div>
                     );
                   })}
+                </div>
+
+                {/* Inventory Issuance History Table */}
+                <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                  <div className="p-4 bg-blue-50 border-b">
+                    <h3 className="text-lg font-semibold text-blue-900">Inventory Issuance History</h3>
+                    <p className="text-sm text-blue-700">Complete history of all inventory items issued to teams</p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50 border-b">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date Issued</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Team</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Gita Telugu</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Booklet Telugu</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Gita English</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Booklet English</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Calendar</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Chikki</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Total Items</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Contact Person</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Phone Number</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {(() => {
+                          // Get all issuance history from all teams
+                          const allIssues = teams.flatMap(team => {
+                            const issueHistory = team.issueHistory || [];
+                            return issueHistory.map(issue => ({
+                              ...issue,
+                              teamName: team.name,
+                              teamId: team.id
+                            }));
+                          });
+
+                          // Sort by date (newest first)
+                          allIssues.sort((a, b) => new Date(b.issuedDate) - new Date(a.issuedDate));
+
+                          if (allIssues.length === 0) {
+                            return (
+                              <tr>
+                                <td colSpan="11" className="px-4 py-12 text-center text-gray-500">
+                                  <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                                  <p>No inventory issuance records found</p>
+                                </td>
+                              </tr>
+                            );
+                          }
+
+                          return allIssues.map((issue, idx) => {
+                            const totalItems = (parseInt(issue.gitaTelugu) || 0) + 
+                                             (parseInt(issue.bookletTelugu) || 0) +
+                                             (parseInt(issue.gitaEnglish) || 0) +
+                                             (parseInt(issue.bookletEnglish) || 0) +
+                                             (parseInt(issue.calendar) || 0) +
+                                             (parseInt(issue.chikki) || 0);
+                            
+                            return (
+                              <tr key={idx} className="hover:bg-gray-50">
+                                <td className="px-4 py-3 text-sm text-gray-600">{new Date(issue.issuedDate).toLocaleDateString()}</td>
+                                <td className="px-4 py-3 text-sm font-medium text-gray-900">{issue.teamName}</td>
+                                <td className="px-4 py-3 text-sm text-right text-gray-700">{issue.gitaTelugu || 0}</td>
+                                <td className="px-4 py-3 text-sm text-right text-gray-700">{issue.bookletTelugu || 0}</td>
+                                <td className="px-4 py-3 text-sm text-right text-gray-700">{issue.gitaEnglish || 0}</td>
+                                <td className="px-4 py-3 text-sm text-right text-gray-700">{issue.bookletEnglish || 0}</td>
+                                <td className="px-4 py-3 text-sm text-right text-gray-700">{issue.calendar || 0}</td>
+                                <td className="px-4 py-3 text-sm text-right text-gray-700">{issue.chikki || 0}</td>
+                                <td className="px-4 py-3 text-sm text-right font-semibold text-green-700">{totalItems}</td>
+                                <td className="px-4 py-3 text-sm text-gray-700">{issue.contactPerson || 'N/A'}</td>
+                                <td className="px-4 py-3 text-sm text-gray-700">{issue.contactPhone || 'N/A'}</td>
+                              </tr>
+                            );
+                          });
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </>
             ) : (
