@@ -746,8 +746,7 @@ const addTeam = async () => {
       
       await addDoc(collection(db, 'requirements'), newReq);
       
-      const totalSets = newReq.gitaTelugu + newReq.gitaEnglish + newReq.bookletTelugu + 
-                       newReq.bookletEnglish + newReq.calendar + newReq.chikki;
+      const totalSets = newReq.gitaTelugu + newReq.gitaEnglish;
       
       setNotifications([...notifications, {
         id: Date.now(),
