@@ -912,6 +912,18 @@ const addTeam = async () => {
       expectedAmount += netSets * price;
     });
 
+    // Fallback: if no schools recorded or expected is still zero, estimate from team's issued inventory
+    if (!expectedAmount) {
+      const team = teams.find(t => t.id === teamId) || {};
+      const issueHistory = (team && team.issueHistory) ? team.issueHistory : [];
+      const totalIssuedItems = issueHistory.reduce((sum, issue) => {
+        const totalSets = parseInt(issue.totalSets || 0);
+        return sum + (isNaN(totalSets) ? 0 : totalSets);
+      }, 0);
+      const fallbackPrice = Number(perSetPrice) > 0 ? Number(perSetPrice) : 250;
+      expectedAmount = totalIssuedItems * fallbackPrice;
+    }
+
     const difference = expectedAmount - totalSettled;
     return { totalCollected, totalSettled, expectedAmount, difference };
   };
