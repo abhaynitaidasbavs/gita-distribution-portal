@@ -140,7 +140,7 @@ const GitaDistributionPortal = () => {
     teluguSetsTakenBack: 0, englishSetsTakenBack: 0,
     teluguSetsIssued: 0, englishSetsIssued: 0, // Changed from "on hold" to "issued"
     freeSetsGiven: 0,
-    moneyCollected: 0, perSetPrice: 250, contactPerson: '',
+    moneyCollected: 0, perSetPrice: 200, contactPerson: '',
     contactNumber: '', email: '', notes: '', date: new Date().toISOString().split('T')[0],
     payments: [], // Array to track daily payments
     updates: [] // Array to track daily updates
@@ -176,7 +176,7 @@ const GitaDistributionPortal = () => {
   });
 
   // Pricing and inventory issuance state
-  const [perSetPrice, setPerSetPrice] = useState(250); // Default price
+  const [perSetPrice, setPerSetPrice] = useState(200); // Default price
   const [issueInventoryForm, setIssueInventoryForm] = useState({
     teamId: '',
     gitaTelugu: 0, gitaEnglish: 0,
@@ -769,7 +769,7 @@ const addTeam = async () => {
     const totalIssuedSets = (school.teluguSetsIssued || 0) + (school.englishSetsIssued || 0);
     const totalTakenBack = (school.teluguSetsTakenBack || 0) + (school.englishSetsTakenBack || 0);
     const netIssuedSets = totalIssuedSets - totalTakenBack;
-    const expectedAmount = netIssuedSets * (school.perSetPrice || 250);
+    const expectedAmount = netIssuedSets * (school.perSetPrice || 200);
     const actualAmount = school.moneyCollected || 0;
     
     return expectedAmount - actualAmount;
@@ -909,7 +909,8 @@ const addTeam = async () => {
       return sum + netTelugu + netEnglish + freeSets;
     }, 0);
     
-    const expectedAmount = totalNetSets * perSetPrice;
+  const validPrice = Number(perSetPrice) > 0 ? Number(perSetPrice) : 200;
+  const expectedAmount = totalNetSets * validPrice;
     const difference = expectedAmount - totalSettled;
     
     return { totalCollected, totalSettled, expectedAmount, difference };
@@ -942,7 +943,8 @@ const addTeam = async () => {
         return sum + netTelugu + netEnglish + freeSets;
       }, 0);
       
-      const expectedSettlement = totalNetSets * perSetPrice;
+  const validPrice = Number(perSetPrice) > 0 ? Number(perSetPrice) : 200;
+  const expectedSettlement = totalNetSets * validPrice;
       const totalMoneySettled = parseInt(team.totalMoneySettled || 0);
       
       return {
@@ -1089,7 +1091,7 @@ const addTeam = async () => {
       teluguSetsTakenBack: 0, englishSetsTakenBack: 0,
       teluguSetsIssued: 0, englishSetsIssued: 0,
       freeSetsGiven: 0,
-      moneyCollected: 0, perSetPrice: 250, contactPerson: '',
+      moneyCollected: 0, perSetPrice: 200, contactPerson: '',
       contactNumber: '', email: '', notes: '', date: new Date().toISOString().split('T')[0],
       payments: [], updates: []
     });
@@ -2366,7 +2368,7 @@ const addTeam = async () => {
                       <input
                         type="number"
                         value={perSetPrice}
-                        onChange={(e) => updatePerSetPrice(parseInt(e.target.value) || 250)}
+                        onChange={(e) => updatePerSetPrice(parseInt(e.target.value) || 200)}
                         className="w-24 px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
                       />
                     </div>
