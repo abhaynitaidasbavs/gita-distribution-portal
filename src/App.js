@@ -902,26 +902,19 @@ const addTeam = async () => {
 
     // Calculate expected amount by summing per-school expected values
     let expectedAmount = 0;
-    teamSchools.forEach(school => {
-      const netTelugu = (school.teluguSetsIssued || 0) - (school.teluguSetsTakenBack || 0);
-      const netEnglish = (school.englishSetsIssued || 0) - (school.englishSetsTakenBack || 0);
-      const freeSets = school.freeSetsGiven || 0;
-      const netSets = netTelugu + netEnglish + freeSets;
-      const price = Number(school.perSetPrice) > 0 ? Number(school.perSetPrice) : (Number(perSetPrice) > 0 ? Number(perSetPrice) : 250);
-      expectedAmount += netSets * price;
-    });
+    
 
     // Fallback: if no schools recorded or expected is still zero, estimate from team's issued inventory
-    if (!expectedAmount) {
+     
       const team = teams.find(t => t.id === teamId) || {};
       const issueHistory = (team && team.issueHistory) ? team.issueHistory : [];
       const totalIssuedItems = issueHistory.reduce((sum, issue) => {
         const totalSets = parseInt(issue.totalSets || 0);
         return sum + (isNaN(totalSets) ? 0 : totalSets);
       }, 0);
-      const fallbackPrice = Number(perSetPrice) > 0 ? Number(perSetPrice) : 250;
+      const fallbackPrice = Number(perSetPrice) > 0 ? Number(perSetPrice) : 200;
       expectedAmount = totalIssuedItems * fallbackPrice;
-    }
+    
 
     const difference = expectedAmount - totalSettled;
     return { totalCollected, totalSettled, expectedAmount, difference };
