@@ -900,19 +900,19 @@ const addTeam = async () => {
     const teamSchools = schools.filter(s => s.teamId === teamId);
     const totalCollected = teamSchools.reduce((sum, s) => sum + parseFloat(s.moneyCollected || 0), 0);
     const totalSettled = teamSchools.filter(s => s.moneySettled).reduce((sum, s) => sum + parseFloat(s.moneyCollected || 0), 0);
-    
-    // Calculate total sets that should have been paid for
-    const totalNetSets = teamSchools.reduce((sum, school) => {
+
+    // Calculate expected amount by summing per-school expected values
+    let expectedAmount = 0;
+    teamSchools.forEach(school => {
       const netTelugu = (school.teluguSetsIssued || 0) - (school.teluguSetsTakenBack || 0);
       const netEnglish = (school.englishSetsIssued || 0) - (school.englishSetsTakenBack || 0);
       const freeSets = school.freeSetsGiven || 0;
-      return sum + netTelugu + netEnglish + freeSets;
-    }, 0);
-    
-  const validPrice = Number(perSetPrice) > 0 ? Number(perSetPrice) : 200;
-  const expectedAmount = totalNetSets * validPrice;
+      const netSets = netTelugu + netEnglish + freeSets;
+      const price = Number(school.perSetPrice) > 0 ? Number(school.perSetPrice) : (Number(perSetPrice) > 0 ? Number(perSetPrice) : 250);
+      expectedAmount += netSets * price;
+    });
+
     const difference = expectedAmount - totalSettled;
-    
     return { totalCollected, totalSettled, expectedAmount, difference };
   };
 
@@ -935,16 +935,17 @@ const addTeam = async () => {
       const totalInventoryIssued = getTeamIssuedInventory(team);
       const teamSchools = schools.filter(s => s.teamId === team.id);
       
-      // Calculate total sets distributed (for expected money)
-      const totalNetSets = teamSchools.reduce((sum, school) => {
+      // Calculate expected settlement by summing per-school expected values
+      let expectedSettlement = 0;
+      teamSchools.forEach(school => {
         const netTelugu = parseInt(school.teluguSetsIssued || 0) - parseInt(school.teluguSetsTakenBack || 0);
         const netEnglish = parseInt(school.englishSetsIssued || 0) - parseInt(school.englishSetsTakenBack || 0);
         const freeSets = parseInt(school.freeSetsGiven || 0);
-        return sum + netTelugu + netEnglish + freeSets;
-      }, 0);
+        const netSets = netTelugu + netEnglish + freeSets;
+        const price = Number(school.perSetPrice) > 0 ? Number(school.perSetPrice) : (Number(perSetPrice) > 0 ? Number(perSetPrice) : 250);
+        expectedSettlement += netSets * price;
+      });
       
-  const validPrice = Number(perSetPrice) > 0 ? Number(perSetPrice) : 200;
-  const expectedSettlement = totalNetSets * validPrice;
       const totalMoneySettled = parseInt(team.totalMoneySettled || 0);
       
       return {
@@ -1465,7 +1466,6 @@ const addTeam = async () => {
                 <select
                   value={selectedTeam || ''}
                   onChange={(e) => setSelectedTeam(e.target.value || null)}
-                  //onChange={(e) => setSelectedTeam(e.target.value ? parseInt(e.target.value) : null)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
                 >
                   <option value="">All Teams</option>
@@ -2424,7 +2424,7 @@ const addTeam = async () => {
                         <div className="space-y-3">
                           <div className="border-b pb-3">
                             <h4 className="text-sm font-semibold text-gray-700 mb-2">Telugu Sets</h4>
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-2 gap-2 mt-4">
                               <div>
                                 <label className="block text-xs text-gray-600 mb-1">Gita Telugu</label>
                                 <input
@@ -2460,7 +2460,7 @@ const addTeam = async () => {
                           
                           <div className="border-b pb-3">
                             <h4 className="text-sm font-semibold text-gray-700 mb-2">English Sets</h4>
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-2 gap-2 mt-4">
                               <div>
                                 <label className="block text-xs text-gray-600 mb-1">Gita English</label>
                                 <input
@@ -2496,7 +2496,7 @@ const addTeam = async () => {
                           
                           <div>
                             <h4 className="text-sm font-semibold text-gray-700 mb-2">Accessories</h4>
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-2 gap-2 mt-4">
                               <div>
                                 <label className="block text-xs text-gray-600 mb-1">Calendar</label>
                                 <input
@@ -2704,7 +2704,7 @@ const addTeam = async () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                           <div className="border-2 border-orange-200 rounded-lg p-5 bg-orange-50">
                             <h4 className="text-md font-bold text-orange-800 mb-3 flex items-center space-x-2">
-                              <BookOpen className="w-5 h-5" />
+                              <BookOpen className="w-5 h-5 mr-2" />
                               <span>Telugu Sets</span>
                             </h4>
                             <div className="space-y-3">
@@ -2727,7 +2727,7 @@ const addTeam = async () => {
                           
                           <div className="border-2 border-blue-200 rounded-lg p-5 bg-blue-50">
                             <h4 className="text-md font-bold text-blue-800 mb-3 flex items-center space-x-2">
-                              <BookOpen className="w-5 h-5" />
+                              <BookOpen className="w-5 h-5 mr-2" />
                               <span>English Sets</span>
                             </h4>
                             <div className="space-y-3">
@@ -2750,7 +2750,7 @@ const addTeam = async () => {
                           
                           <div className="border-2 border-green-200 rounded-lg p-5 bg-green-50">
                             <h4 className="text-md font-bold text-green-800 mb-3 flex items-center space-x-2">
-                              <Package className="w-5 h-5" />
+                              <Package className="w-5 h-5 mr-2" />
                               <span>Accessories</span>
                             </h4>
                             <div className="space-y-3">
