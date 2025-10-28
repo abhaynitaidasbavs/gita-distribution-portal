@@ -837,11 +837,7 @@ const addTeam = async () => {
       
       // Calculate total sets
       const totalSets = parsedGitaTelugu + 
-                        parsedGitaEnglish +
-                        parsedBookletTelugu +
-                        parsedBookletEnglish +
-                        parsedCalendar +
-                        parsedChikki;
+                        parsedGitaEnglish;
       
       // Add to issue history
       const newIssue = {
@@ -900,21 +896,17 @@ const addTeam = async () => {
     const totalCollected = teamSchools.reduce((sum, s) => sum + parseFloat(s.moneyCollected || 0), 0);
     const totalSettled = teamSchools.filter(s => s.moneySettled).reduce((sum, s) => sum + parseFloat(s.moneyCollected || 0), 0);
 
-    // Calculate expected amount by summing per-school expected values
-    let expectedAmount = 0;
-    
+    // Calculate expected amount as total sets issued * global price.
+    // Use the team's issueHistory totalSets (which is gitaTelugu + gitaEnglish per issue) as the authoritative source.
+    const team = teams.find(t => t.id === teamId) || {};
+    const issueHistory = team.issueHistory || [];
+    const totalIssuedItems = issueHistory.reduce((sum, issue) => {
+      const totalSets = parseInt(issue.totalSets || 0);
+      return sum + (isNaN(totalSets) ? 0 : totalSets);
+    }, 0);
 
-    // Fallback: if no schools recorded or expected is still zero, estimate from team's issued inventory
-     
-      const team = teams.find(t => t.id === teamId) || {};
-      const issueHistory = (team && team.issueHistory) ? team.issueHistory : [];
-      const totalIssuedItems = issueHistory.reduce((sum, issue) => {
-        const totalSets = parseInt(issue.totalSets || 0);
-        return sum + (isNaN(totalSets) ? 0 : totalSets);
-      }, 0);
-      const fallbackPrice = Number(perSetPrice) > 0 ? Number(perSetPrice) : 200;
-      expectedAmount = totalIssuedItems * fallbackPrice;
-    
+    const pricePerSet = Number(perSetPrice) > 0 ? Number(perSetPrice) : 200;
+    const expectedAmount = totalIssuedItems * pricePerSet;
 
     const difference = expectedAmount - totalSettled;
     return { totalCollected, totalSettled, expectedAmount, difference };
@@ -939,17 +931,9 @@ const addTeam = async () => {
       const totalInventoryIssued = getTeamIssuedInventory(team);
       const teamSchools = schools.filter(s => s.teamId === team.id);
       
-      // Calculate expected settlement by summing per-school expected values
-      let expectedSettlement = 0;
-      teamSchools.forEach(school => {
-        const netTelugu = parseInt(school.teluguSetsIssued || 0) - parseInt(school.teluguSetsTakenBack || 0);
-        const netEnglish = parseInt(school.englishSetsIssued || 0) - parseInt(school.englishSetsTakenBack || 0);
-        const freeSets = parseInt(school.freeSetsGiven || 0);
-        const netSets = netTelugu + netEnglish + freeSets;
-        const price = Number(school.perSetPrice) > 0 ? Number(school.perSetPrice) : (Number(perSetPrice) > 0 ? Number(perSetPrice) : 250);
-        expectedSettlement += netSets * price;
-      });
-      
+      // Calculate expected settlement using total sets issued * global price
+      const expectedSettlement = totalInventoryIssued * (Number(perSetPrice) > 0 ? Number(perSetPrice) : 200);
+
       const totalMoneySettled = parseInt(team.totalMoneySettled || 0);
       
       return {
