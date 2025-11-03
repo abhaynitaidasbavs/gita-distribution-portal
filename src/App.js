@@ -1507,27 +1507,7 @@ const addTeam = async () => {
                         </div>
                         
                         {/* Settlement Calculation */}
-                        {(() => {
-                          const settlement = calculateTeamSettlementDifference(team.id);
-                          return (
-                            <>
-                              <div className="flex justify-between items-center mb-1">
-                                <span className="text-sm text-gray-600">Total Settled</span>
-                                <span className="font-semibold text-blue-700">₹{settlement.totalSettled.toLocaleString()}</span>
-                              </div>
-                              <div className="flex justify-between items-center mb-1">
-                                <span className="text-sm text-gray-600">Expected Amount</span>
-                                <span className="font-semibold text-purple-700">₹{settlement.expectedAmount.toLocaleString()}</span>
-                              </div>
-                              <div className="flex justify-between items-center mt-2 pt-2 border-t">
-                                <span className="text-sm font-medium text-gray-800">Difference</span>
-                                <span className={`font-semibold ${settlement.difference >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                                  {settlement.difference >= 0 ? '+' : ''}₹{settlement.difference.toLocaleString()}
-                                </span>
-                              </div>
-                            </>
-                          );
-                        })()}
+                        
                       </div>
                     </div>
                   </div>
