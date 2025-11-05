@@ -1375,7 +1375,8 @@ const addTeam = async () => {
       {/* Navigation */}
       <nav className="bg-white shadow-md">
         <div className="container mx-auto px-4">
-          <div className="flex space-x-1">
+          <div className="-mx-4 overflow-x-auto">
+            <div className="inline-flex min-w-max space-x-1 px-4 whitespace-nowrap">
             <button
               onClick={() => setActiveView('dashboard')}
               className={`px-6 py-3 font-medium ${activeView === 'dashboard' ? 'text-orange-600 border-b-2 border-orange-600' : 'text-gray-600 hover:text-orange-600'}`}
@@ -1438,6 +1439,7 @@ const addTeam = async () => {
                 </button>
               </>
             )}
+            </div>
           </div>
         </div>
       </nav>
@@ -1616,7 +1618,7 @@ const addTeam = async () => {
             {/* Schools Table */}
             <div className="bg-white rounded-lg shadow-md overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full min-w-[700px]">
                   <thead className="bg-gray-50 border-b">
                     <tr>
                       {currentUser.role === 'admin' && <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Team</th>}
@@ -1766,7 +1768,7 @@ const addTeam = async () => {
             {/* Updates List */}
             <div className="bg-white rounded-lg shadow-md overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full min-w-[700px]">
                   <thead className="bg-orange-100">
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Date</th>
@@ -2000,7 +2002,7 @@ const addTeam = async () => {
             <h2 className="text-2xl font-bold text-gray-800">Set Requirements</h2>
 
             <div className="bg-white rounded-lg shadow-md overflow-hidden">
-              <table className="w-full">
+              <table className="w-full min-w-[700px]">
                 <thead className="bg-gray-50 border-b">
                   <tr>
                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
@@ -2098,7 +2100,7 @@ const addTeam = async () => {
                     <p className="text-sm text-orange-700">Overview of settlements by team</p>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full">
+                    <table className="w-full min-w-[700px]">
                       <thead className="bg-gray-50 border-b">
                         <tr>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Team</th>
@@ -2132,7 +2134,7 @@ const addTeam = async () => {
                     <p className="text-sm text-blue-700">Complete history of all inventory items issued to teams</p>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full">
+                    <table className="w-full min-w-[700px]">
                       <thead className="bg-gray-50 border-b">
                         <tr>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date Issued</th>
@@ -2210,7 +2212,7 @@ const addTeam = async () => {
                     <h3 className="text-lg font-semibold text-gray-800">Pending Settlement Requests</h3>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full">
+                    <table className="w-full min-w-[700px]">
                       <thead className="bg-gray-50 border-b">
                         <tr>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
@@ -2510,7 +2512,7 @@ const addTeam = async () => {
                     <p className="text-sm text-blue-700">Complete history of all inventory items issued to teams</p>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full">
+                    <table className="w-full min-w-[700px]">
                       <thead className="bg-gray-50 border-b">
                         <tr>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date Issued</th>
