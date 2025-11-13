@@ -140,8 +140,11 @@ const GitaDistributionPortal = () => {
     teluguSetsTakenBack: 0, englishSetsTakenBack: 0,
     teluguSetsIssued: 0, englishSetsIssued: 0, // Changed from "on hold" to "issued"
     freeSetsGiven: 0,
-    moneyCollected: 0, perSetPrice: 200, contactPerson: '',
-    contactNumber: '', email: '', notes: '', date: new Date().toISOString().split('T')[0],
+    moneyCollected: 0, perSetPrice: 200, 
+    contact_person_1_name: '', contact_person_1_phone: '',
+    contact_person_2_name: '', contact_person_2_phone: '',
+    contact_person_3_name: '', contact_person_3_phone: '',
+    email: '', notes: '', date: new Date().toISOString().split('T')[0],
     payments: [], // Array to track daily payments
     updates: [] // Array to track daily updates
   });
@@ -1080,8 +1083,11 @@ const addTeam = async () => {
       teluguSetsTakenBack: 0, englishSetsTakenBack: 0,
       teluguSetsIssued: 0, englishSetsIssued: 0,
       freeSetsGiven: 0,
-      moneyCollected: 0, perSetPrice: 200, contactPerson: '',
-      contactNumber: '', email: '', notes: '', date: new Date().toISOString().split('T')[0],
+      moneyCollected: 0, perSetPrice: 200, 
+      contact_person_1_name: '', contact_person_1_phone: '',
+      contact_person_2_name: '', contact_person_2_phone: '',
+      contact_person_3_name: '', contact_person_3_phone: '',
+      email: '', notes: '', date: new Date().toISOString().split('T')[0],
       payments: [], updates: []
     });
     // Reset incremental update state
@@ -1666,7 +1672,17 @@ const addTeam = async () => {
                             <button
                               onClick={() => {
                                 setEditingItem(school);
-                                setSchoolForm(school);
+                                // Map old contactPerson/contactNumber to new format for backward compatibility
+                                const formData = {
+                                  ...school,
+                                  contact_person_1_name: school.contact_person_1_name || school.contactPerson || '',
+                                  contact_person_1_phone: school.contact_person_1_phone || school.contactNumber || '',
+                                  contact_person_2_name: school.contact_person_2_name || '',
+                                  contact_person_2_phone: school.contact_person_2_phone || '',
+                                  contact_person_3_name: school.contact_person_3_name || '',
+                                  contact_person_3_phone: school.contact_person_3_phone || ''
+                                };
+                                setSchoolForm(formData);
                                 setModalType('school');
                                 setShowModal(true);
                               }}
@@ -3067,24 +3083,84 @@ const addTeam = async () => {
                     
                     
                     
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Contact Person</label>
-                      <input
-                        type="text"
-                        value={schoolForm.contactPerson}
-                        onChange={(e) => setSchoolForm({...schoolForm, contactPerson: e.target.value})}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Contact Number</label>
-                      <input
-                        type="tel"
-                        value={schoolForm.contactNumber}
-                        onChange={(e) => setSchoolForm({...schoolForm, contactNumber: e.target.value})}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                      />
+                    <div className="col-span-2">
+                      <h5 className="text-sm font-semibold text-gray-700 mb-3">Contact Persons</h5>
+                      <div className="space-y-4">
+                        {/* Contact Person 1 */}
+                        <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                          <h6 className="text-xs font-medium text-gray-600 mb-3">Contact Person 1</h6>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
+                              <input
+                                type="text"
+                                value={schoolForm.contact_person_1_name || ''}
+                                onChange={(e) => setSchoolForm({...schoolForm, contact_person_1_name: e.target.value})}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
+                              <input
+                                type="tel"
+                                value={schoolForm.contact_person_1_phone || ''}
+                                onChange={(e) => setSchoolForm({...schoolForm, contact_person_1_phone: e.target.value})}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Contact Person 2 */}
+                        <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                          <h6 className="text-xs font-medium text-gray-600 mb-3">Contact Person 2</h6>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
+                              <input
+                                type="text"
+                                value={schoolForm.contact_person_2_name || ''}
+                                onChange={(e) => setSchoolForm({...schoolForm, contact_person_2_name: e.target.value})}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
+                              <input
+                                type="tel"
+                                value={schoolForm.contact_person_2_phone || ''}
+                                onChange={(e) => setSchoolForm({...schoolForm, contact_person_2_phone: e.target.value})}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Contact Person 3 */}
+                        <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                          <h6 className="text-xs font-medium text-gray-600 mb-3">Contact Person 3</h6>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
+                              <input
+                                type="text"
+                                value={schoolForm.contact_person_3_name || ''}
+                                onChange={(e) => setSchoolForm({...schoolForm, contact_person_3_name: e.target.value})}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
+                              <input
+                                type="tel"
+                                value={schoolForm.contact_person_3_phone || ''}
+                                onChange={(e) => setSchoolForm({...schoolForm, contact_person_3_phone: e.target.value})}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                   
@@ -3208,16 +3284,54 @@ const addTeam = async () => {
                     
                     
                     <div className="col-span-2 border-t pt-4">
-                      <h5 className="font-semibold text-gray-800 mb-2">Contact Information</h5>
-                      <div className="space-y-2">
-                        <div>
-                          <p className="text-sm text-gray-600">Contact Person</p>
-                          <p className="font-medium text-gray-800">{editingItem.contactPerson || 'N/A'}</p>
+                      <h5 className="font-semibold text-gray-800 mb-3">Contact Information</h5>
+                      <div className="space-y-4">
+                        {/* Contact Person 1 */}
+                        <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                          <h6 className="text-xs font-semibold text-gray-700 mb-2">Contact Person 1</h6>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-sm text-gray-600">Name</p>
+                              <p className="font-medium text-gray-800">{editingItem.contact_person_1_name || editingItem.contactPerson || 'N/A'}</p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-600">Phone</p>
+                              <p className="font-medium text-gray-800">{editingItem.contact_person_1_phone || editingItem.contactNumber || 'N/A'}</p>
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-sm text-gray-600">Phone</p>
-                          <p className="font-medium text-gray-800">{editingItem.contactNumber || 'N/A'}</p>
+                        
+                        {/* Contact Person 2 */}
+                        <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                          <h6 className="text-xs font-semibold text-gray-700 mb-2">Contact Person 2</h6>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-sm text-gray-600">Name</p>
+                              <p className="font-medium text-gray-800">{editingItem.contact_person_2_name || 'N/A'}</p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-600">Phone</p>
+                              <p className="font-medium text-gray-800">{editingItem.contact_person_2_phone || 'N/A'}</p>
+                            </div>
+                          </div>
                         </div>
+                        
+                        {/* Contact Person 3 */}
+                        <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                          <h6 className="text-xs font-semibold text-gray-700 mb-2">Contact Person 3</h6>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-sm text-gray-600">Name</p>
+                              <p className="font-medium text-gray-800">{editingItem.contact_person_3_name || 'N/A'}</p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-600">Phone</p>
+                              <p className="font-medium text-gray-800">{editingItem.contact_person_3_phone || 'N/A'}</p>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Email */}
                         <div>
                           <p className="text-sm text-gray-600">Email</p>
                           <p className="font-medium text-gray-800">{editingItem.email || 'N/A'}</p>
