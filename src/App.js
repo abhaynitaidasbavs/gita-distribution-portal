@@ -1280,6 +1280,30 @@ const addTeam = async () => {
       alert('Error approving settlement. Please try again.');
     }
   };
+
+  const declineMoneySettlement = async (settlementId) => {
+    try {
+      const settlementRef = doc(db, 'moneySettlements', settlementId);
+      const settlementSnap = await getDoc(settlementRef);
+      
+      if (!settlementSnap.exists()) {
+        alert('Settlement not found');
+        return;
+      }
+
+      // Update settlement status to declined
+      await updateDoc(settlementRef, {
+        status: 'declined',
+        declinedAt: new Date().toISOString(),
+        declinedBy: currentUser.uid
+      });
+
+      alert('Money settlement declined!');
+    } catch (error) {
+      console.error('Error declining settlement:', error);
+      alert('Error declining settlement. Please try again.');
+    }
+  };
   // Reset forms
   const resetSchoolForm = () => {
     setSchoolForm({
@@ -2466,12 +2490,20 @@ const addTeam = async () => {
                         </td>
                         <td className="px-4 py-3 text-center">
                           {settlement.status === 'pending' && (
-                            <button
-                              onClick={() => approveMoneySettlement(settlement.id)}
-                              className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors"
-                            >
-                              Approve
-                            </button>
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => approveMoneySettlement(settlement.id)}
+                                className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => declineMoneySettlement(settlement.id)}
+                                className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+                              >
+                                Decline
+                              </button>
+                            </div>
                           )}
                         </td>
                       </tr>
