@@ -1527,8 +1527,8 @@ const addTeam = async () => {
         <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
           <div className="text-center mb-8">
             <BookOpen className="w-16 h-16 text-orange-600 mx-auto mb-4" />
-            <h1 className="text-3xl font-bold text-gray-800">Bhagavad Gita</h1>
-            <p className="text-gray-600">Distribution Portal</p>
+            <h1 className="text-3xl font-bold text-gray-800">VEC Portal</h1>
+            <p className="text-gray-600">Gita Marathon</p>
           </div>
           
           <form onSubmit={handleLogin} className="space-y-4">
@@ -1579,7 +1579,7 @@ const addTeam = async () => {
             <div className="flex items-center space-x-3">
               <BookOpen className="w-8 h-8" />
               <div>
-                <h1 className="text-2xl font-bold">Gita Distribution Portal</h1>
+                <h1 className="text-2xl font-bold">VEC Portal</h1>
                 <p className="text-orange-100 text-sm">
                   {currentUser.role === 'admin' ? 'Admin Dashboard' : currentUser.name}
                 </p>
