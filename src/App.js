@@ -1863,7 +1863,7 @@ const addTeam = async () => {
                   <thead className="bg-gray-50 border-b">
                     <tr>
                       {currentUser.role === 'admin' && <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Team</th>}
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Announcement Date</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Area</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">School</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
@@ -3281,7 +3281,7 @@ const addTeam = async () => {
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Date *</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Announcement Date *</label>
                       <input
                         type="date"
                         value={schoolForm.date}
