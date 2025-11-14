@@ -119,6 +119,80 @@ const GitaDistributionPortal = () => {
     return () => unsubscribeSettlements();
   }, [isLoggedIn]);
 
+  // Fetch master inventory in real-time (admin only)
+  useEffect(() => {
+    if (!isLoggedIn || !currentUser || currentUser.role !== 'admin') return;
+    
+    const masterInventoryRef = doc(db, 'masterInventory', 'main');
+    const unsubscribeMasterInventory = onSnapshot(
+      masterInventoryRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          setMasterInventory({
+            gitaTelugu: data.gitaTelugu || 0,
+            gitaEnglish: data.gitaEnglish || 0,
+            bookletTelugu: data.bookletTelugu || 0,
+            bookletEnglish: data.bookletEnglish || 0,
+            calendar: data.calendar || 0,
+            chikki: data.chikki || 0
+          });
+        } else {
+          // Initialize master inventory if it doesn't exist
+          setDoc(masterInventoryRef, {
+            gitaTelugu: 0,
+            gitaEnglish: 0,
+            bookletTelugu: 0,
+            bookletEnglish: 0,
+            calendar: 0,
+            chikki: 0
+          });
+        }
+      }
+    );
+    
+    return () => unsubscribeMasterInventory();
+  }, [isLoggedIn, currentUser]);
+
+  // Fetch master inventory history and all team issue history (admin only)
+  useEffect(() => {
+    if (!isLoggedIn || !currentUser || currentUser.role !== 'admin') return;
+    
+    // Fetch master inventory additions history
+    const unsubscribeMasterHistory = onSnapshot(
+      collection(db, 'masterInventoryHistory'),
+      (snapshot) => {
+        const historyData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        
+        // Also get all team issue history
+        const allTeamIssues = teams.flatMap(team => {
+          const issueHistory = team.issueHistory || [];
+          return issueHistory.map(issue => ({
+            id: `${team.id}-${issue.timestamp || Date.now()}`,
+            ...issue,
+            teamName: team.name,
+            teamId: team.id,
+            type: 'issued'
+          }));
+        });
+        
+        // Combine and sort by date
+        const combinedHistory = [...historyData, ...allTeamIssues].sort((a, b) => {
+          const dateA = a.date || a.issuedDate || a.timestamp || '';
+          const dateB = b.date || b.issuedDate || b.timestamp || '';
+          return new Date(dateB) - new Date(dateA);
+        });
+        
+        setMasterInventoryHistory(combinedHistory);
+      }
+    );
+    
+    return () => unsubscribeMasterHistory();
+  }, [isLoggedIn, currentUser, teams]);
+
   // UI State
   const [activeView, setActiveView] = useState('dashboard');
   const [selectedTeam, setSelectedTeam] = useState(null);
@@ -188,6 +262,27 @@ const GitaDistributionPortal = () => {
     issuedDate: new Date().toISOString().split('T')[0],
     contactPerson: '',
     contactPhone: ''
+  });
+
+  // Master inventory state
+  const [masterInventory, setMasterInventory] = useState({
+    gitaTelugu: 0,
+    gitaEnglish: 0,
+    bookletTelugu: 0,
+    bookletEnglish: 0,
+    calendar: 0,
+    chikki: 0
+  });
+  const [masterInventoryHistory, setMasterInventoryHistory] = useState([]);
+  const [addInventoryForm, setAddInventoryForm] = useState({
+    gitaTelugu: 0,
+    gitaEnglish: 0,
+    bookletTelugu: 0,
+    bookletEnglish: 0,
+    calendar: 0,
+    chikki: 0,
+    date: new Date().toISOString().split('T')[0],
+    notes: ''
   });
 
   // Admin credentials
@@ -817,9 +912,6 @@ const addTeam = async () => {
         return;
       }
       
-      const currentInventory = teamSnap.data().inventory || {};
-      const issueHistory = teamSnap.data().issueHistory || [];
-      
       // Parse issue values as integers to prevent string concatenation
       const parsedGitaTelugu = parseInt(issueInventoryForm.gitaTelugu) || 0;
       const parsedGitaEnglish = parseInt(issueInventoryForm.gitaEnglish) || 0;
@@ -827,6 +919,40 @@ const addTeam = async () => {
       const parsedBookletEnglish = parseInt(issueInventoryForm.bookletEnglish) || 0;
       const parsedCalendar = parseInt(issueInventoryForm.calendar) || 0;
       const parsedChikki = parseInt(issueInventoryForm.chikki) || 0;
+
+      // Check master inventory availability (admin only)
+      if (currentUser.role === 'admin') {
+        const masterInventoryRef = doc(db, 'masterInventory', 'main');
+        const masterSnap = await getDoc(masterInventoryRef);
+        
+        if (masterSnap.exists()) {
+          const masterData = masterSnap.data();
+          
+          // Check if master inventory has enough stock
+          if ((masterData.gitaTelugu || 0) < parsedGitaTelugu ||
+              (masterData.gitaEnglish || 0) < parsedGitaEnglish ||
+              (masterData.bookletTelugu || 0) < parsedBookletTelugu ||
+              (masterData.bookletEnglish || 0) < parsedBookletEnglish ||
+              (masterData.calendar || 0) < parsedCalendar ||
+              (masterData.chikki || 0) < parsedChikki) {
+            alert('Insufficient stock in master inventory. Please add inventory first.');
+            return;
+          }
+          
+          // Deduct from master inventory
+          await updateDoc(masterInventoryRef, {
+            gitaTelugu: (masterData.gitaTelugu || 0) - parsedGitaTelugu,
+            gitaEnglish: (masterData.gitaEnglish || 0) - parsedGitaEnglish,
+            bookletTelugu: (masterData.bookletTelugu || 0) - parsedBookletTelugu,
+            bookletEnglish: (masterData.bookletEnglish || 0) - parsedBookletEnglish,
+            calendar: (masterData.calendar || 0) - parsedCalendar,
+            chikki: (masterData.chikki || 0) - parsedChikki
+          });
+        }
+      }
+      
+      const currentInventory = teamSnap.data().inventory || {};
+      const issueHistory = teamSnap.data().issueHistory || [];
 
       // Calculate new inventory
       const updatedInventory = {
@@ -884,6 +1010,85 @@ const addTeam = async () => {
     } catch (error) {
       console.error('Error updating price:', error);
       alert('Error updating price. Please try again.');
+    }
+  };
+
+  // Add inventory to master inventory
+  const addInventoryToMaster = async () => {
+    try {
+      const parsedGitaTelugu = parseInt(addInventoryForm.gitaTelugu) || 0;
+      const parsedGitaEnglish = parseInt(addInventoryForm.gitaEnglish) || 0;
+      const parsedBookletTelugu = parseInt(addInventoryForm.bookletTelugu) || 0;
+      const parsedBookletEnglish = parseInt(addInventoryForm.bookletEnglish) || 0;
+      const parsedCalendar = parseInt(addInventoryForm.calendar) || 0;
+      const parsedChikki = parseInt(addInventoryForm.chikki) || 0;
+
+      // Check if at least one item is being added
+      if (parsedGitaTelugu === 0 && parsedGitaEnglish === 0 && 
+          parsedBookletTelugu === 0 && parsedBookletEnglish === 0 &&
+          parsedCalendar === 0 && parsedChikki === 0) {
+        alert('Please enter at least one inventory item to add');
+        return;
+      }
+
+      const masterInventoryRef = doc(db, 'masterInventory', 'main');
+      const masterSnap = await getDoc(masterInventoryRef);
+      
+      let currentMaster = {
+        gitaTelugu: 0,
+        gitaEnglish: 0,
+        bookletTelugu: 0,
+        bookletEnglish: 0,
+        calendar: 0,
+        chikki: 0
+      };
+
+      if (masterSnap.exists()) {
+        currentMaster = masterSnap.data();
+      }
+
+      // Add to master inventory
+      await updateDoc(masterInventoryRef, {
+        gitaTelugu: (currentMaster.gitaTelugu || 0) + parsedGitaTelugu,
+        gitaEnglish: (currentMaster.gitaEnglish || 0) + parsedGitaEnglish,
+        bookletTelugu: (currentMaster.bookletTelugu || 0) + parsedBookletTelugu,
+        bookletEnglish: (currentMaster.bookletEnglish || 0) + parsedBookletEnglish,
+        calendar: (currentMaster.calendar || 0) + parsedCalendar,
+        chikki: (currentMaster.chikki || 0) + parsedChikki
+      });
+
+      // Record the addition in master inventory history
+      const masterHistoryRef = collection(db, 'masterInventoryHistory');
+      await addDoc(masterHistoryRef, {
+        gitaTelugu: parsedGitaTelugu,
+        gitaEnglish: parsedGitaEnglish,
+        bookletTelugu: parsedBookletTelugu,
+        bookletEnglish: parsedBookletEnglish,
+        calendar: parsedCalendar,
+        chikki: parsedChikki,
+        date: addInventoryForm.date,
+        notes: addInventoryForm.notes || '',
+        timestamp: new Date().toISOString(),
+        type: 'added'
+      });
+
+      alert('Inventory added to master inventory successfully!');
+      
+      // Reset form
+      setAddInventoryForm({
+        gitaTelugu: 0,
+        gitaEnglish: 0,
+        bookletTelugu: 0,
+        bookletEnglish: 0,
+        calendar: 0,
+        chikki: 0,
+        date: new Date().toISOString().split('T')[0],
+        notes: ''
+      });
+      setShowModal(false);
+    } catch (error) {
+      console.error('Error adding inventory:', error);
+      alert('Error adding inventory. Please try again.');
     }
   };
 
@@ -1426,6 +1631,12 @@ const addTeam = async () => {
                   className={`px-6 py-3 font-medium ${activeView === 'settlements' ? 'text-orange-600 border-b-2 border-orange-600' : 'text-gray-600 hover:text-orange-600'}`}
                 >
                   Money Settlements
+                </button>
+                <button
+                  onClick={() => setActiveView('masterInventory')}
+                  className={`px-6 py-3 font-medium ${activeView === 'masterInventory' ? 'text-orange-600 border-b-2 border-orange-600' : 'text-gray-600 hover:text-orange-600'}`}
+                >
+                  Master Inventory
                 </button>
               </>
             )}
@@ -2759,6 +2970,230 @@ const addTeam = async () => {
             )}
           </div>
         )}
+
+        {/* Master Inventory View (Admin Only) */}
+        {activeView === 'masterInventory' && currentUser.role === 'admin' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-800">Master Inventory</h2>
+              <button
+                onClick={() => {
+                  setModalType('addInventory');
+                  setAddInventoryForm({
+                    gitaTelugu: 0,
+                    gitaEnglish: 0,
+                    bookletTelugu: 0,
+                    bookletEnglish: 0,
+                    calendar: 0,
+                    chikki: 0,
+                    date: new Date().toISOString().split('T')[0],
+                    notes: ''
+                  });
+                  setShowModal(true);
+                }}
+                className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Inventory</span>
+              </button>
+            </div>
+
+            {/* Current Stock Display */}
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Current Stock</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="border-2 border-orange-200 rounded-lg p-5 bg-orange-50">
+                  <h4 className="text-md font-bold text-orange-800 mb-3 flex items-center space-x-2">
+                    <BookOpen className="w-5 h-5 mr-2" />
+                    <span>Telugu Sets</span>
+                  </h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-gray-700">Gita Telugu:</span>
+                      <span className="font-bold text-lg text-orange-600">{masterInventory.gitaTelugu || 0}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-gray-700">Booklet Telugu:</span>
+                      <span className="font-bold text-lg text-orange-600">{masterInventory.bookletTelugu || 0}</span>
+                    </div>
+                    <div className="pt-3 border-t border-orange-300">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-bold text-gray-800">Complete Sets:</span>
+                        <span className="font-bold text-xl text-orange-700">
+                          {Math.min(
+                            masterInventory.gitaTelugu || 0,
+                            masterInventory.bookletTelugu || 0,
+                            masterInventory.calendar || 0,
+                            masterInventory.chikki || 0
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="border-2 border-blue-200 rounded-lg p-5 bg-blue-50">
+                  <h4 className="text-md font-bold text-blue-800 mb-3 flex items-center space-x-2">
+                    <BookOpen className="w-5 h-5 mr-2" />
+                    <span>English Sets</span>
+                  </h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-gray-700">Gita English:</span>
+                      <span className="font-bold text-lg text-blue-600">{masterInventory.gitaEnglish || 0}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-gray-700">Booklet English:</span>
+                      <span className="font-bold text-lg text-blue-600">{masterInventory.bookletEnglish || 0}</span>
+                    </div>
+                    <div className="pt-3 border-t border-blue-300">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-bold text-gray-800">Complete Sets:</span>
+                        <span className="font-bold text-xl text-blue-700">
+                          {Math.min(
+                            masterInventory.gitaEnglish || 0,
+                            masterInventory.bookletEnglish || 0,
+                            masterInventory.calendar || 0,
+                            masterInventory.chikki || 0
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="border-2 border-green-200 rounded-lg p-5 bg-green-50">
+                  <h4 className="text-md font-bold text-green-800 mb-3 flex items-center space-x-2">
+                    <Package className="w-5 h-5 mr-2" />
+                    <span>Accessories</span>
+                  </h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-gray-700">Calendar:</span>
+                      <span className="font-bold text-lg text-green-600">{masterInventory.calendar || 0}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-gray-700">Chikki:</span>
+                      <span className="font-bold text-lg text-green-600">{masterInventory.chikki || 0}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Total Summary */}
+              <div className="mt-6 pt-6 border-t border-gray-200">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="text-sm text-gray-600 mb-1">Total Items</div>
+                    <div className="text-2xl font-bold text-gray-800">
+                      {(masterInventory.gitaTelugu || 0) + 
+                       (masterInventory.gitaEnglish || 0) + 
+                       (masterInventory.bookletTelugu || 0) + 
+                       (masterInventory.bookletEnglish || 0) + 
+                       (masterInventory.calendar || 0) + 
+                       (masterInventory.chikki || 0)}
+                    </div>
+                  </div>
+                  <div className="bg-orange-50 rounded-lg p-4">
+                    <div className="text-sm text-gray-600 mb-1">Total Telugu Sets</div>
+                    <div className="text-2xl font-bold text-orange-700">
+                      {Math.min(
+                        masterInventory.gitaTelugu || 0,
+                        masterInventory.bookletTelugu || 0,
+                        masterInventory.calendar || 0,
+                        masterInventory.chikki || 0
+                      )}
+                    </div>
+                  </div>
+                  <div className="bg-blue-50 rounded-lg p-4">
+                    <div className="text-sm text-gray-600 mb-1">Total English Sets</div>
+                    <div className="text-2xl font-bold text-blue-700">
+                      {Math.min(
+                        masterInventory.gitaEnglish || 0,
+                        masterInventory.bookletEnglish || 0,
+                        masterInventory.calendar || 0,
+                        masterInventory.chikki || 0
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Inventory History Table */}
+            <div className="bg-white rounded-lg shadow-md overflow-hidden">
+              <div className="p-4 bg-blue-50 border-b">
+                <h3 className="text-lg font-semibold text-blue-900">Inventory History</h3>
+                <p className="text-sm text-blue-700">All inventory additions and issues</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[800px]">
+                  <thead className="bg-gray-50 border-b">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Type</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Team</th>
+                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Gita Telugu</th>
+                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Booklet Telugu</th>
+                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Gita English</th>
+                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Booklet English</th>
+                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Calendar</th>
+                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Chikki</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {masterInventoryHistory.length === 0 ? (
+                      <tr>
+                        <td colSpan="10" className="px-4 py-12 text-center text-gray-500">
+                          <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                          <p>No inventory history found</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      masterInventoryHistory.map((item, idx) => {
+                        const totalItems = (parseInt(item.gitaTelugu) || 0) + 
+                                         (parseInt(item.bookletTelugu) || 0) +
+                                         (parseInt(item.gitaEnglish) || 0) +
+                                         (parseInt(item.bookletEnglish) || 0) +
+                                         (parseInt(item.calendar) || 0) +
+                                         (parseInt(item.chikki) || 0);
+                        const displayDate = item.date || item.issuedDate || item.timestamp || '';
+                        
+                        return (
+                          <tr key={item.id || idx} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-sm text-gray-600">
+                              {displayDate ? new Date(displayDate).toLocaleDateString() : 'N/A'}
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                item.type === 'added' 
+                                  ? 'bg-green-100 text-green-700' 
+                                  : 'bg-orange-100 text-orange-700'
+                              }`}>
+                                {item.type === 'added' ? 'Added' : 'Issued'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                              {item.teamName || item.contactPerson || '-'}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-right text-gray-700">{item.gitaTelugu || 0}</td>
+                            <td className="px-4 py-3 text-sm text-right text-gray-700">{item.bookletTelugu || 0}</td>
+                            <td className="px-4 py-3 text-sm text-right text-gray-700">{item.gitaEnglish || 0}</td>
+                            <td className="px-4 py-3 text-sm text-right text-gray-700">{item.bookletEnglish || 0}</td>
+                            <td className="px-4 py-3 text-sm text-right text-gray-700">{item.calendar || 0}</td>
+                            <td className="px-4 py-3 text-sm text-right text-gray-700">{item.chikki || 0}</td>
+                            <td className="px-4 py-3 text-sm text-gray-700">{item.notes || '-'}</td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Modal */}
@@ -2773,6 +3208,7 @@ const addTeam = async () => {
                 {modalType === 'viewSchool' && 'School Details'}
                 {modalType === 'settlement' && 'Submit Money Settlement'}
                 {modalType === 'issueInventory' && 'Issue Inventory to Team'}
+                {modalType === 'addInventory' && 'Add Inventory to Master'}
               </h3>
               <button
                 onClick={() => {
@@ -3767,6 +4203,116 @@ const addTeam = async () => {
                       className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                     >
                       Issue Inventory
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Add Inventory Form */}
+              {modalType === 'addInventory' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Date *</label>
+                    <input
+                      type="date"
+                      value={addInventoryForm.date}
+                      onChange={(e) => setAddInventoryForm({...addInventoryForm, date: e.target.value})}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      required
+                    />
+                  </div>
+
+                  <div className="border-t pt-4">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Inventory Items</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Gita Telugu</label>
+                        <input
+                          type="number"
+                          value={addInventoryForm.gitaTelugu || ''}
+                          onChange={(e) => setAddInventoryForm({...addInventoryForm, gitaTelugu: e.target.value})}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                          min="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Booklet Telugu</label>
+                        <input
+                          type="number"
+                          value={addInventoryForm.bookletTelugu || ''}
+                          onChange={(e) => setAddInventoryForm({...addInventoryForm, bookletTelugu: e.target.value})}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                          min="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Gita English</label>
+                        <input
+                          type="number"
+                          value={addInventoryForm.gitaEnglish || ''}
+                          onChange={(e) => setAddInventoryForm({...addInventoryForm, gitaEnglish: e.target.value})}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                          min="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Booklet English</label>
+                        <input
+                          type="number"
+                          value={addInventoryForm.bookletEnglish || ''}
+                          onChange={(e) => setAddInventoryForm({...addInventoryForm, bookletEnglish: e.target.value})}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                          min="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Calendar</label>
+                        <input
+                          type="number"
+                          value={addInventoryForm.calendar || ''}
+                          onChange={(e) => setAddInventoryForm({...addInventoryForm, calendar: e.target.value})}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                          min="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Chikki</label>
+                        <input
+                          type="number"
+                          value={addInventoryForm.chikki || ''}
+                          onChange={(e) => setAddInventoryForm({...addInventoryForm, chikki: e.target.value})}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                          min="0"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Notes (Optional)</label>
+                    <textarea
+                      value={addInventoryForm.notes}
+                      onChange={(e) => setAddInventoryForm({...addInventoryForm, notes: e.target.value})}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      rows="3"
+                      placeholder="Additional notes about this inventory addition"
+                    />
+                  </div>
+
+                  <div className="flex justify-end space-x-3 pt-4">
+                    <button
+                      onClick={() => {
+                        setShowModal(false);
+                      }}
+                      className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={addInventoryToMaster}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      Add to Master Inventory
                     </button>
                   </div>
                 </div>
