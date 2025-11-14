@@ -1866,7 +1866,7 @@ const addTeam = async () => {
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Announcement Date</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Area</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">School</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Announcement Status</th>
                       <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Telugu Sets</th>
                       <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">English Sets</th>
                       <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Money</th>
@@ -2483,7 +2483,7 @@ const addTeam = async () => {
                         <td className="px-4 py-3 text-sm text-gray-700">{settlement.paymentMethod}</td>
                         <td className="px-4 py-3 text-center">
                           <span className={`px-3 py-1 text-xs rounded-full ${
-                            settlement.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                            settlement.status === 'approved' ? 'bg-green-100 text-green-700' : (settlement.status === 'declined' ? 'bg-red-100 text-red-700' :'bg-yellow-100 text-yellow-700')
                           }`}>
                             {settlement.status}
                           </span>
