@@ -135,7 +135,8 @@ const GitaDistributionPortal = () => {
             bookletTelugu: data.bookletTelugu || 0,
             bookletEnglish: data.bookletEnglish || 0,
             calendar: data.calendar || 0,
-            chikki: data.chikki || 0
+            chikki: data.chikki || 0,
+            pamphlets: data.pamphlets || 0
           });
         } else {
           // Initialize master inventory if it doesn't exist
@@ -145,7 +146,8 @@ const GitaDistributionPortal = () => {
             bookletTelugu: 0,
             bookletEnglish: 0,
             calendar: 0,
-            chikki: 0
+            chikki: 0,
+            pamphlets: 0
           });
         }
       }
@@ -220,7 +222,8 @@ const GitaDistributionPortal = () => {
     contact_person_3_name: '', contact_person_3_phone: '',
     email: '', notes: '', date: new Date().toISOString().split('T')[0],
     payments: [], // Array to track daily payments
-    updates: [] // Array to track daily updates
+    updates: [], // Array to track daily updates
+    pamphlets: 0
   });
 
   // State for incremental updates in the update modal
@@ -241,7 +244,7 @@ const GitaDistributionPortal = () => {
     inventory: {
       gitaTelugu: 0, gitaEnglish: 0,
       bookletTelugu: 0, bookletEnglish: 0,
-      calendar: 0, chikki: 0
+      calendar: 0, chikki: 0, pamphlets: 0
     }
   });
 
@@ -258,7 +261,7 @@ const GitaDistributionPortal = () => {
     teamId: '',
     gitaTelugu: 0, gitaEnglish: 0,
     bookletTelugu: 0, bookletEnglish: 0,
-    calendar: 0, chikki: 0,
+    calendar: 0, chikki: 0, pamphlets: 0,
     issuedDate: new Date().toISOString().split('T')[0],
     contactPerson: '',
     contactPhone: ''
@@ -271,7 +274,8 @@ const GitaDistributionPortal = () => {
     bookletTelugu: 0,
     bookletEnglish: 0,
     calendar: 0,
-    chikki: 0
+    chikki: 0,
+    pamphlets: 0
   });
   const [masterInventoryHistory, setMasterInventoryHistory] = useState([]);
   const [addInventoryForm, setAddInventoryForm] = useState({
@@ -281,6 +285,7 @@ const GitaDistributionPortal = () => {
     bookletEnglish: 0,
     calendar: 0,
     chikki: 0,
+    pamphlets: 0,
     date: new Date().toISOString().split('T')[0],
     notes: ''
   });
@@ -491,6 +496,15 @@ const GitaDistributionPortal = () => {
       }
     }
     
+    // Check pamphlets if specified
+    const pamphletsIssued = parseInt(schoolForm.pamphlets || 0);
+    if (pamphletsIssued > 0) {
+      if ((currentInventory.pamphlets || 0) < pamphletsIssued) {
+        alert(`Insufficient Pamphlets inventory. Available: ${currentInventory.pamphlets || 0}, Required: ${pamphletsIssued}`);
+        return;
+      }
+    }
+    
     // Calculate new inventory values
     const newInventory = {
       gitaTelugu: Math.max(0, (currentInventory.gitaTelugu || 0) - netTeluguSets),
@@ -498,7 +512,8 @@ const GitaDistributionPortal = () => {
       gitaEnglish: Math.max(0, (currentInventory.gitaEnglish || 0) - netEnglishSets),
       bookletEnglish: Math.max(0, (currentInventory.bookletEnglish || 0) - netEnglishSets),
       calendar: Math.max(0, (currentInventory.calendar || 0) - totalSetsNeeded),
-      chikki: Math.max(0, (currentInventory.chikki || 0) - totalSetsNeeded)
+      chikki: Math.max(0, (currentInventory.chikki || 0) - totalSetsNeeded),
+      pamphlets: Math.max(0, (currentInventory.pamphlets || 0) - pamphletsIssued)
     };
     
     console.log('New inventory will be:', newInventory);
@@ -774,7 +789,8 @@ const addTeam = async () => {
           bookletTelugu: parseInt(teamForm.inventory?.bookletTelugu) || 0,
           bookletEnglish: parseInt(teamForm.inventory?.bookletEnglish) || 0,
           calendar: parseInt(teamForm.inventory?.calendar) || 0,
-          chikki: parseInt(teamForm.inventory?.chikki) || 0
+          chikki: parseInt(teamForm.inventory?.chikki) || 0,
+          pamphlets: parseInt(teamForm.inventory?.pamphlets) || 0
         },
         createdAt: new Date().toISOString()
       };
@@ -919,6 +935,7 @@ const addTeam = async () => {
       const parsedBookletEnglish = parseInt(issueInventoryForm.bookletEnglish) || 0;
       const parsedCalendar = parseInt(issueInventoryForm.calendar) || 0;
       const parsedChikki = parseInt(issueInventoryForm.chikki) || 0;
+      const parsedPamphlets = parseInt(issueInventoryForm.pamphlets) || 0;
 
       // Check master inventory availability (admin only)
       if (currentUser.role === 'admin') {
@@ -934,7 +951,8 @@ const addTeam = async () => {
               (masterData.bookletTelugu || 0) < parsedBookletTelugu ||
               (masterData.bookletEnglish || 0) < parsedBookletEnglish ||
               (masterData.calendar || 0) < parsedCalendar ||
-              (masterData.chikki || 0) < parsedChikki) {
+              (masterData.chikki || 0) < parsedChikki ||
+              (masterData.pamphlets || 0) < parsedPamphlets) {
             alert('Insufficient stock in master inventory. Please add inventory first.');
             return;
           }
@@ -946,7 +964,8 @@ const addTeam = async () => {
             bookletTelugu: (masterData.bookletTelugu || 0) - parsedBookletTelugu,
             bookletEnglish: (masterData.bookletEnglish || 0) - parsedBookletEnglish,
             calendar: (masterData.calendar || 0) - parsedCalendar,
-            chikki: (masterData.chikki || 0) - parsedChikki
+            chikki: (masterData.chikki || 0) - parsedChikki,
+            pamphlets: (masterData.pamphlets || 0) - parsedPamphlets
           });
         }
       }
@@ -961,7 +980,8 @@ const addTeam = async () => {
         gitaEnglish: (currentInventory.gitaEnglish || 0) + parsedGitaEnglish,
         bookletEnglish: (currentInventory.bookletEnglish || 0) + parsedBookletEnglish,
         calendar: (currentInventory.calendar || 0) + parsedCalendar,
-        chikki: (currentInventory.chikki || 0) + parsedChikki
+        chikki: (currentInventory.chikki || 0) + parsedChikki,
+        pamphlets: (currentInventory.pamphlets || 0) + parsedPamphlets
       };
       
       // Calculate total sets
@@ -988,7 +1008,7 @@ const addTeam = async () => {
         teamId: '',
         gitaTelugu: 0, gitaEnglish: 0,
         bookletTelugu: 0, bookletEnglish: 0,
-        calendar: 0, chikki: 0,
+        calendar: 0, chikki: 0, pamphlets: 0,
         issuedDate: new Date().toISOString().split('T')[0],
         contactPerson: '',
         contactPhone: ''
@@ -1022,11 +1042,12 @@ const addTeam = async () => {
       const parsedBookletEnglish = parseInt(addInventoryForm.bookletEnglish) || 0;
       const parsedCalendar = parseInt(addInventoryForm.calendar) || 0;
       const parsedChikki = parseInt(addInventoryForm.chikki) || 0;
+      const parsedPamphlets = parseInt(addInventoryForm.pamphlets) || 0;
 
       // Check if at least one item is being added
       if (parsedGitaTelugu === 0 && parsedGitaEnglish === 0 && 
           parsedBookletTelugu === 0 && parsedBookletEnglish === 0 &&
-          parsedCalendar === 0 && parsedChikki === 0) {
+          parsedCalendar === 0 && parsedChikki === 0 && parsedPamphlets === 0) {
         alert('Please enter at least one inventory item to add');
         return;
       }
@@ -1040,7 +1061,8 @@ const addTeam = async () => {
         bookletTelugu: 0,
         bookletEnglish: 0,
         calendar: 0,
-        chikki: 0
+        chikki: 0,
+        pamphlets: 0
       };
 
       if (masterSnap.exists()) {
@@ -1054,7 +1076,8 @@ const addTeam = async () => {
         bookletTelugu: (currentMaster.bookletTelugu || 0) + parsedBookletTelugu,
         bookletEnglish: (currentMaster.bookletEnglish || 0) + parsedBookletEnglish,
         calendar: (currentMaster.calendar || 0) + parsedCalendar,
-        chikki: (currentMaster.chikki || 0) + parsedChikki
+        chikki: (currentMaster.chikki || 0) + parsedChikki,
+        pamphlets: (currentMaster.pamphlets || 0) + parsedPamphlets
       });
 
       // Record the addition in master inventory history
@@ -1066,6 +1089,7 @@ const addTeam = async () => {
         bookletEnglish: parsedBookletEnglish,
         calendar: parsedCalendar,
         chikki: parsedChikki,
+        pamphlets: parsedPamphlets,
         date: addInventoryForm.date,
         notes: addInventoryForm.notes || '',
         timestamp: new Date().toISOString(),
@@ -1082,6 +1106,7 @@ const addTeam = async () => {
         bookletEnglish: 0,
         calendar: 0,
         chikki: 0,
+        pamphlets: 0,
         date: new Date().toISOString().split('T')[0],
         notes: ''
       });
@@ -1866,7 +1891,7 @@ const addTeam = async () => {
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Announcement Date</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Area</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">School</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Announcement Status</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
                       <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Telugu Sets</th>
                       <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">English Sets</th>
                       <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Money</th>
@@ -2483,7 +2508,7 @@ const addTeam = async () => {
                         <td className="px-4 py-3 text-sm text-gray-700">{settlement.paymentMethod}</td>
                         <td className="px-4 py-3 text-center">
                           <span className={`px-3 py-1 text-xs rounded-full ${
-                            settlement.status === 'approved' ? 'bg-green-100 text-green-700' : (settlement.status === 'declined' ? 'bg-red-100 text-red-700' :'bg-yellow-100 text-yellow-700')
+                            settlement.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
                           }`}>
                             {settlement.status}
                           </span>
@@ -2532,7 +2557,7 @@ const addTeam = async () => {
                           <p className="text-sm text-gray-600">{settlement.paymentMethod} • {settlement.date}</p>
                         </div>
                         <span className={`px-3 py-1 text-xs rounded-full ${
-                          settlement.status === 'approved' ? 'bg-green-100 text-green-700' : (settlement.status === 'declined' ? 'bg-red-100 text-red-700' :'bg-yellow-100 text-yellow-700')
+                          settlement.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
                         }`}>
                           {settlement.status}
                         </span>
@@ -2609,7 +2634,7 @@ const addTeam = async () => {
                           teamId: '',
                           gitaTelugu: 0, gitaEnglish: 0,
                           bookletTelugu: 0, bookletEnglish: 0,
-                          calendar: 0, chikki: 0,
+                          calendar: 0, chikki: 0, pamphlets: 0,
                           issuedDate: new Date().toISOString().split('T')[0],
                           contactPerson: '',
                           contactPhone: ''
@@ -2750,6 +2775,21 @@ const addTeam = async () => {
                                     const updatedInventory = {
                                       ...team.inventory,
                                       chikki: parseInt(e.target.value) || 0
+                                    };
+                                    updateTeamInventory(team.id, updatedInventory);
+                                  }}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">Pamphlets</label>
+                                <input
+                                  type="number"
+                                  value={team.inventory.pamphlets || 0}
+                                  onChange={(e) => {
+                                    const updatedInventory = {
+                                      ...team.inventory,
+                                      pamphlets: parseInt(e.target.value) || 0
                                     };
                                     updateTeamInventory(team.id, updatedInventory);
                                   }}
@@ -2914,13 +2954,14 @@ const addTeam = async () => {
                                  (team.inventory.bookletTelugu || 0) + 
                                  (team.inventory.bookletEnglish || 0) + 
                                  (team.inventory.calendar || 0) + 
-                                 (team.inventory.chikki || 0)}
+                                 (team.inventory.chikki || 0) + 
+                                 (team.inventory.pamphlets || 0)}
                               </div>
                             </div>
                             <div>
                               <div className="text-sm text-gray-600 mb-1">Total Accessories</div>
                               <div className="text-3xl font-bold text-blue-700">
-                                {(team.inventory.calendar || 0) + (team.inventory.chikki || 0)}
+                                {(team.inventory.calendar || 0) + (team.inventory.chikki || 0) + (team.inventory.pamphlets || 0)}
                               </div>
                             </div>
                           </div>
@@ -2990,6 +3031,10 @@ const addTeam = async () => {
                               <div className="flex justify-between items-center">
                                 <span className="text-sm font-medium text-gray-700">Chikki:</span>
                                 <span className="font-bold text-lg text-green-600">{team.inventory.chikki || 0}</span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm font-medium text-gray-700">Pamphlets:</span>
+                                <span className="font-bold text-lg text-green-600">{team.inventory.pamphlets || 0}</span>
                               </div>
                             </div>
                           </div>
@@ -3108,6 +3153,10 @@ const addTeam = async () => {
                       <span className="text-sm font-medium text-gray-700">Chikki:</span>
                       <span className="font-bold text-lg text-green-600">{masterInventory.chikki || 0}</span>
                     </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-gray-700">Pamphlets:</span>
+                      <span className="font-bold text-lg text-green-600">{masterInventory.pamphlets || 0}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -3123,7 +3172,8 @@ const addTeam = async () => {
                        (masterInventory.bookletTelugu || 0) + 
                        (masterInventory.bookletEnglish || 0) + 
                        (masterInventory.calendar || 0) + 
-                       (masterInventory.chikki || 0)}
+                       (masterInventory.chikki || 0) + 
+                       (masterInventory.pamphlets || 0)}
                     </div>
                   </div>
                   <div className="bg-orange-50 rounded-lg p-4">
@@ -3540,6 +3590,16 @@ const addTeam = async () => {
                     </div>
                     
                     <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Pamphlets</label>
+                      <input
+                        type="number"
+                        value={schoolForm.pamphlets || 0}
+                        onChange={(e) => setSchoolForm({...schoolForm, pamphlets: parseInt(e.target.value) || 0})}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      />
+                    </div>
+                    
+                    <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Per Set Price (₹)</label>
                       <input
                         type="number"
@@ -3919,6 +3979,15 @@ const addTeam = async () => {
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
                       />
                     </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Pamphlets</label>
+                      <input
+                        type="number"
+                        value={teamForm.inventory.pamphlets || 0}
+                        onChange={(e) => setTeamForm({...teamForm, inventory: {...teamForm.inventory, pamphlets: parseInt(e.target.value) || 0}})}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      />
+                    </div>
                   </div>
                   
                   <div className="flex justify-end space-x-3 pt-4">
@@ -4218,6 +4287,16 @@ const addTeam = async () => {
                           min="0"
                         />
                       </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Pamphlets</label>
+                        <input
+                          type="number"
+                          value={issueInventoryForm.pamphlets || ''}
+                          onChange={(e) => setIssueInventoryForm({...issueInventoryForm, pamphlets: e.target.value})}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                          min="0"
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -4313,6 +4392,16 @@ const addTeam = async () => {
                           type="number"
                           value={addInventoryForm.chikki || ''}
                           onChange={(e) => setAddInventoryForm({...addInventoryForm, chikki: e.target.value})}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                          min="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Pamphlets</label>
+                        <input
+                          type="number"
+                          value={addInventoryForm.pamphlets || ''}
+                          onChange={(e) => setAddInventoryForm({...addInventoryForm, pamphlets: e.target.value})}
                           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
                           min="0"
                         />
