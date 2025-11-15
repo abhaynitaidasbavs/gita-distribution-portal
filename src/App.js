@@ -2421,6 +2421,7 @@ const addTeam = async () => {
                           <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Booklet English</th>
                           <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Calendar</th>
                           <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Chikki</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Pamphlets</th>
                           <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Total Items</th>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Contact Person</th>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Phone Number</th>
@@ -2444,7 +2445,7 @@ const addTeam = async () => {
                           if (allIssues.length === 0) {
                             return (
                               <tr>
-                                <td colSpan="11" className="px-4 py-12 text-center text-gray-500">
+                                <td colSpan="12" className="px-4 py-12 text-center text-gray-500">
                                   <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
                                   <p>No inventory issuance records found</p>
                                 </td>
@@ -2458,7 +2459,8 @@ const addTeam = async () => {
                                              (parseInt(issue.gitaEnglish) || 0) +
                                              (parseInt(issue.bookletEnglish) || 0) +
                                              (parseInt(issue.calendar) || 0) +
-                                             (parseInt(issue.chikki) || 0);
+                                             (parseInt(issue.chikki) || 0) +
+                                             (parseInt(issue.pamphlets) || 0);
                             
                             return (
                               <tr key={idx} className="hover:bg-gray-50">
@@ -2470,6 +2472,7 @@ const addTeam = async () => {
                                 <td className="px-4 py-3 text-sm text-right text-gray-700">{issue.bookletEnglish || 0}</td>
                                 <td className="px-4 py-3 text-sm text-right text-gray-700">{issue.calendar || 0}</td>
                                 <td className="px-4 py-3 text-sm text-right text-gray-700">{issue.chikki || 0}</td>
+                                <td className="px-4 py-3 text-sm text-right text-gray-700">{issue.pamphlets || 0}</td>
                                 <td className="px-4 py-3 text-sm text-right font-semibold text-green-700">{totalItems}</td>
                                 <td className="px-4 py-3 text-sm text-gray-700">{issue.contactPerson || 'N/A'}</td>
                                 <td className="px-4 py-3 text-sm text-gray-700">{issue.contactPhone || 'N/A'}</td>
@@ -2822,6 +2825,7 @@ const addTeam = async () => {
                           <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Booklet English</th>
                           <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Calendar</th>
                           <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Chikki</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Pamphlets</th>
                           <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Total Items</th>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Contact Person</th>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Phone Number</th>
@@ -2845,7 +2849,7 @@ const addTeam = async () => {
                           if (allIssues.length === 0) {
                             return (
                               <tr>
-                                <td colSpan="11" className="px-4 py-12 text-center text-gray-500">
+                                <td colSpan="12" className="px-4 py-12 text-center text-gray-500">
                                   <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
                                   <p>No inventory issuance records found</p>
                                 </td>
@@ -2859,7 +2863,8 @@ const addTeam = async () => {
                                              (parseInt(issue.gitaEnglish) || 0) +
                                              (parseInt(issue.bookletEnglish) || 0) +
                                              (parseInt(issue.calendar) || 0) +
-                                             (parseInt(issue.chikki) || 0);
+                                             (parseInt(issue.chikki) || 0) +
+                                             (parseInt(issue.pamphlets) || 0);
                             
                             return (
                               <tr key={idx} className="hover:bg-gray-50">
@@ -2871,6 +2876,7 @@ const addTeam = async () => {
                                 <td className="px-4 py-3 text-sm text-right text-gray-700">{issue.bookletEnglish || 0}</td>
                                 <td className="px-4 py-3 text-sm text-right text-gray-700">{issue.calendar || 0}</td>
                                 <td className="px-4 py-3 text-sm text-right text-gray-700">{issue.chikki || 0}</td>
+                                <td className="px-4 py-3 text-sm text-right text-gray-700">{issue.pamphlets || 0}</td>
                                 <td className="px-4 py-3 text-sm text-right font-semibold text-green-700">{totalItems}</td>
                                 <td className="px-4 py-3 text-sm text-gray-700">{issue.contactPerson || 'N/A'}</td>
                                 <td className="px-4 py-3 text-sm text-gray-700">{issue.contactPhone || 'N/A'}</td>
@@ -3221,13 +3227,14 @@ const addTeam = async () => {
                       <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Booklet English</th>
                       <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Calendar</th>
                       <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Chikki</th>
+                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Pamphlets</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Notes</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
                     {masterInventoryHistory.length === 0 ? (
                       <tr>
-                        <td colSpan="10" className="px-4 py-12 text-center text-gray-500">
+                        <td colSpan="11" className="px-4 py-12 text-center text-gray-500">
                           <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
                           <p>No inventory history found</p>
                         </td>
@@ -3239,7 +3246,8 @@ const addTeam = async () => {
                                          (parseInt(item.gitaEnglish) || 0) +
                                          (parseInt(item.bookletEnglish) || 0) +
                                          (parseInt(item.calendar) || 0) +
-                                         (parseInt(item.chikki) || 0);
+                                         (parseInt(item.chikki) || 0) +
+                                         (parseInt(item.pamphlets) || 0);
                         const displayDate = item.date || item.issuedDate || item.timestamp || '';
                         
                         return (
@@ -3265,6 +3273,7 @@ const addTeam = async () => {
                             <td className="px-4 py-3 text-sm text-right text-gray-700">{item.bookletEnglish || 0}</td>
                             <td className="px-4 py-3 text-sm text-right text-gray-700">{item.calendar || 0}</td>
                             <td className="px-4 py-3 text-sm text-right text-gray-700">{item.chikki || 0}</td>
+                            <td className="px-4 py-3 text-sm text-right text-gray-700">{item.pamphlets || 0}</td>
                             <td className="px-4 py-3 text-sm text-gray-700">{item.notes || '-'}</td>
                           </tr>
                         );
