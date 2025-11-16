@@ -3194,15 +3194,10 @@ const addTeam = async () => {
               <div className="mt-6 pt-6 border-t border-gray-200">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="bg-gray-50 rounded-lg p-4">
-                    <div className="text-sm text-gray-600 mb-1">Total Items</div>
+                    <div className="text-sm text-gray-600 mb-1">Total Gitas</div>
                     <div className="text-2xl font-bold text-gray-800">
                       {(masterInventory.gitaTelugu || 0) + 
-                       (masterInventory.gitaEnglish || 0) + 
-                       (masterInventory.bookletTelugu || 0) + 
-                       (masterInventory.bookletEnglish || 0) + 
-                       (masterInventory.calendar || 0) + 
-                       (masterInventory.chikki || 0) + 
-                       (masterInventory.pamphlets || 0)}
+                       (masterInventory.gitaEnglish || 0)}
                     </div>
                   </div>
                   <div className="bg-orange-50 rounded-lg p-4">
@@ -3253,19 +3248,7 @@ const addTeam = async () => {
                           <span className="text-sm font-medium text-gray-700">Booklet Telugu:</span>
                           <span className="font-bold text-lg text-orange-600">{aggregateStock.bookletTelugu || 0}</span>
                         </div>
-                        <div className="pt-3 border-t border-orange-300">
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm font-bold text-gray-800">Complete Sets:</span>
-                            <span className="font-bold text-xl text-orange-700">
-                              {Math.min(
-                                aggregateStock.gitaTelugu || 0,
-                                aggregateStock.bookletTelugu || 0,
-                                aggregateStock.calendar || 0,
-                                aggregateStock.chikki || 0
-                              )}
-                            </span>
-                          </div>
-                        </div>
+                        
                       </div>
                     </div>
                     
@@ -3283,19 +3266,7 @@ const addTeam = async () => {
                           <span className="text-sm font-medium text-gray-700">Booklet English:</span>
                           <span className="font-bold text-lg text-blue-600">{aggregateStock.bookletEnglish || 0}</span>
                         </div>
-                        <div className="pt-3 border-t border-blue-300">
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm font-bold text-gray-800">Complete Sets:</span>
-                            <span className="font-bold text-xl text-blue-700">
-                              {Math.min(
-                                aggregateStock.gitaEnglish || 0,
-                                aggregateStock.bookletEnglish || 0,
-                                aggregateStock.calendar || 0,
-                                aggregateStock.chikki || 0
-                              )}
-                            </span>
-                          </div>
-                        </div>
+                        
                       </div>
                     </div>
                     
@@ -3323,7 +3294,7 @@ const addTeam = async () => {
                 );
               })()}
 
-              {/* Total Summary */}
+              {/* 
               <div className="mt-6 pt-6 border-t border-gray-200">
                 {(() => {
                   const aggregateStock = calculateAggregateStock();
@@ -3368,7 +3339,7 @@ const addTeam = async () => {
                 })()}
               </div>
             </div>
-
+              */}
             {/* Inventory History Table */}
             <div className="bg-white rounded-lg shadow-md overflow-hidden">
               <div className="p-4 bg-blue-50 border-b">
