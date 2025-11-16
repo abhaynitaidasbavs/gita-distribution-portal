@@ -3294,52 +3294,9 @@ const addTeam = async () => {
                 );
               })()}
 
-              {/* 
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                {(() => {
-                  const aggregateStock = calculateAggregateStock();
-                  return (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="bg-gray-50 rounded-lg p-4">
-                        <div className="text-sm text-gray-600 mb-1">Total Items</div>
-                        <div className="text-2xl font-bold text-gray-800">
-                          {(aggregateStock.gitaTelugu || 0) + 
-                           (aggregateStock.gitaEnglish || 0) + 
-                           (aggregateStock.bookletTelugu || 0) + 
-                           (aggregateStock.bookletEnglish || 0) + 
-                           (aggregateStock.calendar || 0) + 
-                           (aggregateStock.chikki || 0) + 
-                           (aggregateStock.pamphlets || 0)}
-                        </div>
-                      </div>
-                      <div className="bg-orange-50 rounded-lg p-4">
-                        <div className="text-sm text-gray-600 mb-1">Total Telugu Sets</div>
-                        <div className="text-2xl font-bold text-orange-700">
-                          {Math.min(
-                            aggregateStock.gitaTelugu || 0,
-                            aggregateStock.bookletTelugu || 0,
-                            aggregateStock.calendar || 0,
-                            aggregateStock.chikki || 0
-                          )}
-                        </div>
-                      </div>
-                      <div className="bg-blue-50 rounded-lg p-4">
-                        <div className="text-sm text-gray-600 mb-1">Total English Sets</div>
-                        <div className="text-2xl font-bold text-blue-700">
-                          {Math.min(
-                            aggregateStock.gitaEnglish || 0,
-                            aggregateStock.bookletEnglish || 0,
-                            aggregateStock.calendar || 0,
-                            aggregateStock.chikki || 0
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
+              
             </div>
-              */}
+              
             {/* Inventory History Table */}
             <div className="bg-white rounded-lg shadow-md overflow-hidden">
               <div className="p-4 bg-blue-50 border-b">
