@@ -1117,6 +1117,29 @@ const addTeam = async () => {
     }
   };
 
+  // Calculate aggregate stock (total accumulated inventory from all additions)
+  const calculateAggregateStock = () => {
+    return masterInventoryHistory
+      .filter(item => item.type === 'added')
+      .reduce((aggregate, item) => ({
+        gitaTelugu: aggregate.gitaTelugu + (parseInt(item.gitaTelugu) || 0),
+        gitaEnglish: aggregate.gitaEnglish + (parseInt(item.gitaEnglish) || 0),
+        bookletTelugu: aggregate.bookletTelugu + (parseInt(item.bookletTelugu) || 0),
+        bookletEnglish: aggregate.bookletEnglish + (parseInt(item.bookletEnglish) || 0),
+        calendar: aggregate.calendar + (parseInt(item.calendar) || 0),
+        chikki: aggregate.chikki + (parseInt(item.chikki) || 0),
+        pamphlets: aggregate.pamphlets + (parseInt(item.pamphlets) || 0)
+      }), {
+        gitaTelugu: 0,
+        gitaEnglish: 0,
+        bookletTelugu: 0,
+        bookletEnglish: 0,
+        calendar: 0,
+        chikki: 0,
+        pamphlets: 0
+      });
+  };
+
   // Calculate total sets given to team
   const calculateTotalSetsGiven = (team) => {
     const issueHistory = team.issueHistory || [];
@@ -3205,6 +3228,144 @@ const addTeam = async () => {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Aggregate Stock Display */}
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Aggregate Stock</h3>
+              <p className="text-sm text-gray-600 mb-4">Total inventory accumulated over time (only additions, not decremented by issues)</p>
+              {(() => {
+                const aggregateStock = calculateAggregateStock();
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="border-2 border-orange-200 rounded-lg p-5 bg-orange-50">
+                      <h4 className="text-md font-bold text-orange-800 mb-3 flex items-center space-x-2">
+                        <BookOpen className="w-5 h-5 mr-2" />
+                        <span>Telugu Sets</span>
+                      </h4>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-700">Gita Telugu:</span>
+                          <span className="font-bold text-lg text-orange-600">{aggregateStock.gitaTelugu || 0}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-700">Booklet Telugu:</span>
+                          <span className="font-bold text-lg text-orange-600">{aggregateStock.bookletTelugu || 0}</span>
+                        </div>
+                        <div className="pt-3 border-t border-orange-300">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm font-bold text-gray-800">Complete Sets:</span>
+                            <span className="font-bold text-xl text-orange-700">
+                              {Math.min(
+                                aggregateStock.gitaTelugu || 0,
+                                aggregateStock.bookletTelugu || 0,
+                                aggregateStock.calendar || 0,
+                                aggregateStock.chikki || 0
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="border-2 border-blue-200 rounded-lg p-5 bg-blue-50">
+                      <h4 className="text-md font-bold text-blue-800 mb-3 flex items-center space-x-2">
+                        <BookOpen className="w-5 h-5 mr-2" />
+                        <span>English Sets</span>
+                      </h4>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-700">Gita English:</span>
+                          <span className="font-bold text-lg text-blue-600">{aggregateStock.gitaEnglish || 0}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-700">Booklet English:</span>
+                          <span className="font-bold text-lg text-blue-600">{aggregateStock.bookletEnglish || 0}</span>
+                        </div>
+                        <div className="pt-3 border-t border-blue-300">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm font-bold text-gray-800">Complete Sets:</span>
+                            <span className="font-bold text-xl text-blue-700">
+                              {Math.min(
+                                aggregateStock.gitaEnglish || 0,
+                                aggregateStock.bookletEnglish || 0,
+                                aggregateStock.calendar || 0,
+                                aggregateStock.chikki || 0
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="border-2 border-green-200 rounded-lg p-5 bg-green-50">
+                      <h4 className="text-md font-bold text-green-800 mb-3 flex items-center space-x-2">
+                        <Package className="w-5 h-5 mr-2" />
+                        <span>Accessories</span>
+                      </h4>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-700">Calendar:</span>
+                          <span className="font-bold text-lg text-green-600">{aggregateStock.calendar || 0}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-700">Chikki:</span>
+                          <span className="font-bold text-lg text-green-600">{aggregateStock.chikki || 0}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-700">Pamphlets:</span>
+                          <span className="font-bold text-lg text-green-600">{aggregateStock.pamphlets || 0}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Total Summary */}
+              <div className="mt-6 pt-6 border-t border-gray-200">
+                {(() => {
+                  const aggregateStock = calculateAggregateStock();
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        <div className="text-sm text-gray-600 mb-1">Total Items</div>
+                        <div className="text-2xl font-bold text-gray-800">
+                          {(aggregateStock.gitaTelugu || 0) + 
+                           (aggregateStock.gitaEnglish || 0) + 
+                           (aggregateStock.bookletTelugu || 0) + 
+                           (aggregateStock.bookletEnglish || 0) + 
+                           (aggregateStock.calendar || 0) + 
+                           (aggregateStock.chikki || 0) + 
+                           (aggregateStock.pamphlets || 0)}
+                        </div>
+                      </div>
+                      <div className="bg-orange-50 rounded-lg p-4">
+                        <div className="text-sm text-gray-600 mb-1">Total Telugu Sets</div>
+                        <div className="text-2xl font-bold text-orange-700">
+                          {Math.min(
+                            aggregateStock.gitaTelugu || 0,
+                            aggregateStock.bookletTelugu || 0,
+                            aggregateStock.calendar || 0,
+                            aggregateStock.chikki || 0
+                          )}
+                        </div>
+                      </div>
+                      <div className="bg-blue-50 rounded-lg p-4">
+                        <div className="text-sm text-gray-600 mb-1">Total English Sets</div>
+                        <div className="text-2xl font-bold text-blue-700">
+                          {Math.min(
+                            aggregateStock.gitaEnglish || 0,
+                            aggregateStock.bookletEnglish || 0,
+                            aggregateStock.calendar || 0,
+                            aggregateStock.chikki || 0
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
