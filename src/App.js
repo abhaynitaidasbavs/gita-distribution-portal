@@ -3914,7 +3914,7 @@ const addTeam = async () => {
                       <div className="space-y-4">
                         {/* Contact Person 1 */}
                         <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
-                          <h6 className="text-xs font-semibold text-gray-700 mb-2">Contact Person 1</h6>
+                          <h6 className="text-xs font-semibold text-gray-700 mb-2">Principal Details</h6>
                           <div className="grid grid-cols-2 gap-4">
                             <div>
                               <p className="text-sm text-gray-600">Name</p>
@@ -3929,7 +3929,7 @@ const addTeam = async () => {
                         
                         {/* Contact Person 2 */}
                         <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
-                          <h6 className="text-xs font-semibold text-gray-700 mb-2">Contact Person 2</h6>
+                          <h6 className="text-xs font-semibold text-gray-700 mb-2">Coordinator Details</h6>
                           <div className="grid grid-cols-2 gap-4">
                             <div>
                               <p className="text-sm text-gray-600">Name</p>
