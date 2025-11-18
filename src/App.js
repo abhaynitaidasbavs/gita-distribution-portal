@@ -2922,7 +2922,7 @@ const addTeam = async () => {
                             <span className="text-xs text-gray-500">Latest 10 entries</span>
                           </div>
                           {(() => {
-                            const historyEntries = formatIssueHistoryEntries(team.issueHistory || []).slice(0, 10);
+                            const historyEntries = formatIssueHistoryEntries(team.issueHistory || []);
                             
                             if (historyEntries.length === 0) {
                               return (
