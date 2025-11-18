@@ -90,6 +90,30 @@ const buildIssueHistoryRows = (history = []) => {
     });
 };
 
+const formatIssueHistoryEntries = (history = []) => {
+  return history
+    .slice()
+    .sort((a, b) => {
+      const dateA = getIssueDateObject(a)?.getTime() || 0;
+      const dateB = getIssueDateObject(b)?.getTime() || 0;
+      return dateB - dateA;
+    })
+    .map(issue => {
+      const dateObj = getIssueDateObject(issue);
+      const dateLabel = dateObj ? dateObj.toLocaleDateString() : 'N/A';
+      
+      const itemCounts = ISSUE_ITEM_FIELDS.reduce((acc, field) => {
+        acc[field.key] = parseInt(issue[field.key], 10) || 0;
+        return acc;
+      }, {});
+      
+      return {
+        dateLabel,
+        ...itemCounts
+      };
+    });
+};
+
 onAuthStateChanged(auth, (user) => {
   if (user) {
     console.log('Logged in UID:', user.uid);
@@ -2898,9 +2922,9 @@ const addTeam = async () => {
                             <span className="text-xs text-gray-500">Latest 10 entries</span>
                           </div>
                           {(() => {
-                            const historyRows = buildIssueHistoryRows(team.issueHistory || []).slice(0, 10);
+                            const historyEntries = formatIssueHistoryEntries(team.issueHistory || []).slice(0, 10);
                             
-                            if (historyRows.length === 0) {
+                            if (historyEntries.length === 0) {
                               return (
                                 <div className="text-sm text-gray-500 bg-gray-50 border border-dashed border-gray-200 rounded-lg p-4 text-center">
                                   No issuance history recorded for this team yet.
@@ -2909,21 +2933,23 @@ const addTeam = async () => {
                             }
                             
                             return (
-                              <div className="max-h-48 overflow-y-auto border border-gray-100 rounded-lg">
-                                <table className="w-full text-sm">
+                              <div className="overflow-x-auto border border-gray-100 rounded-lg">
+                                <table className="w-full text-sm min-w-[600px]">
                                   <thead className="bg-gray-50 text-left text-gray-600">
                                     <tr>
                                       <th className="px-3 py-2 font-semibold">Date</th>
-                                      <th className="px-3 py-2 font-semibold">Item</th>
-                                      <th className="px-3 py-2 font-semibold text-right">Count</th>
+                                      {ISSUE_ITEM_FIELDS.map(({ key, label }) => (
+                                        <th key={`${team.id}-head-${key}`} className="px-3 py-2 font-semibold text-right">{label}</th>
+                                      ))}
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y">
-                                    {historyRows.map((row, index) => (
+                                    {historyEntries.map((entry, index) => (
                                       <tr key={`${team.id}-history-${index}`}>
-                                        <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{row.dateLabel}</td>
-                                        <td className="px-3 py-2 text-gray-800">{row.itemLabel}</td>
-                                        <td className="px-3 py-2 text-gray-900 text-right font-semibold">{row.count}</td>
+                                        <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{entry.dateLabel}</td>
+                                        {ISSUE_ITEM_FIELDS.map(({ key }) => (
+                                          <td key={`${team.id}-history-${index}-${key}`} className="px-3 py-2 text-right text-gray-800">{entry[key]}</td>
+                                        ))}
                                       </tr>
                                     ))}
                                   </tbody>
@@ -3184,9 +3210,9 @@ const addTeam = async () => {
                           <span className="text-xs text-gray-500">Complete history</span>
                         </div>
                         {(() => {
-                          const historyRows = buildIssueHistoryRows(team.issueHistory || []);
+                          const historyEntries = formatIssueHistoryEntries(team.issueHistory || []);
                           
-                          if (historyRows.length === 0) {
+                          if (historyEntries.length === 0) {
                             return (
                               <div className="text-center text-gray-500 bg-gray-50 border border-dashed border-gray-200 rounded-lg p-6">
                                 No issuance history found for your team yet.
@@ -3196,20 +3222,22 @@ const addTeam = async () => {
                           
                           return (
                             <div className="max-h-64 overflow-y-auto border border-gray-100 rounded-lg">
-                              <table className="w-full text-sm">
+                              <table className="w-full text-sm min-w-[600px]">
                                 <thead className="bg-gray-50 text-left text-gray-600">
                                   <tr>
                                     <th className="px-4 py-2 font-semibold">Date</th>
-                                    <th className="px-4 py-2 font-semibold">Item</th>
-                                    <th className="px-4 py-2 font-semibold text-right">Count</th>
+                                    {ISSUE_ITEM_FIELDS.map(({ key, label }) => (
+                                      <th key={`team-view-head-${key}`} className="px-4 py-2 font-semibold text-right">{label}</th>
+                                    ))}
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y">
-                                  {historyRows.map((row, index) => (
+                                  {historyEntries.map((entry, index) => (
                                     <tr key={`team-view-history-${index}`}>
-                                      <td className="px-4 py-2 text-gray-700 whitespace-nowrap">{row.dateLabel}</td>
-                                      <td className="px-4 py-2 text-gray-800">{row.itemLabel}</td>
-                                      <td className="px-4 py-2 text-gray-900 text-right font-semibold">{row.count}</td>
+                                      <td className="px-4 py-2 text-gray-700 whitespace-nowrap">{entry.dateLabel}</td>
+                                      {ISSUE_ITEM_FIELDS.map(({ key }) => (
+                                        <td key={`team-view-history-${index}-${key}`} className="px-4 py-2 text-right text-gray-900 font-semibold">{entry[key]}</td>
+                                      ))}
                                     </tr>
                                   ))}
                                 </tbody>
