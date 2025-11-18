@@ -24,6 +24,72 @@ import {
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Download, Users, BookOpen, DollarSign, Package, Bell, Edit2, Trash2, Eye, Filter, X, Check, AlertCircle, LogOut, Save } from 'lucide-react';
 
+const ISSUE_ITEM_FIELDS = [
+  { key: 'gitaTelugu', label: 'Gita Telugu' },
+  { key: 'bookletTelugu', label: 'Booklet Telugu' },
+  { key: 'gitaEnglish', label: 'Gita English' },
+  { key: 'bookletEnglish', label: 'Booklet English' },
+  { key: 'calendar', label: 'Calendar' },
+  { key: 'chikki', label: 'Chikki' },
+  { key: 'pamphlets', label: 'Pamphlets' }
+];
+
+const getIssueDateObject = (issue = {}) => {
+  const dateValue = issue.issuedDate || issue.date || issue.timestamp || issue.createdAt;
+  
+  if (!dateValue) return null;
+  
+  if (typeof dateValue === 'string' || typeof dateValue === 'number') {
+    const parsed = new Date(dateValue);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  
+  if (typeof dateValue === 'object') {
+    if (typeof dateValue.toDate === 'function') {
+      try {
+        return dateValue.toDate();
+      } catch (error) {
+        console.warn('Unable to parse Firestore timestamp:', error);
+        return null;
+      }
+    }
+    
+    if ('seconds' in dateValue && 'nanoseconds' in dateValue) {
+      const milliseconds = dateValue.seconds * 1000 + Math.floor(dateValue.nanoseconds / 1_000_000);
+      return new Date(milliseconds);
+    }
+  }
+  
+  return null;
+};
+
+const buildIssueHistoryRows = (history = []) => {
+  return history
+    .slice()
+    .sort((a, b) => {
+      const dateA = getIssueDateObject(a)?.getTime() || 0;
+      const dateB = getIssueDateObject(b)?.getTime() || 0;
+      return dateB - dateA;
+    })
+    .flatMap(issue => {
+      const dateObj = getIssueDateObject(issue);
+      const dateLabel = dateObj ? dateObj.toLocaleDateString() : 'N/A';
+      
+      return ISSUE_ITEM_FIELDS
+        .map(({ key, label }) => {
+          const value = parseInt(issue[key], 10);
+          if (!value) return null;
+          
+          return {
+            dateLabel,
+            itemLabel: label,
+            count: value
+          };
+        })
+        .filter(Boolean);
+    });
+};
+
 onAuthStateChanged(auth, (user) => {
   if (user) {
     console.log('Logged in UID:', user.uid);
@@ -2825,6 +2891,47 @@ const addTeam = async () => {
                             </div>
                           </div>
                         </div>
+                        
+                        <div className="mt-6 pt-4 border-t border-gray-100">
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="text-sm font-semibold text-gray-700">Recent Issuance History</h4>
+                            <span className="text-xs text-gray-500">Latest 10 entries</span>
+                          </div>
+                          {(() => {
+                            const historyRows = buildIssueHistoryRows(team.issueHistory || []).slice(0, 10);
+                            
+                            if (historyRows.length === 0) {
+                              return (
+                                <div className="text-sm text-gray-500 bg-gray-50 border border-dashed border-gray-200 rounded-lg p-4 text-center">
+                                  No issuance history recorded for this team yet.
+                                </div>
+                              );
+                            }
+                            
+                            return (
+                              <div className="max-h-48 overflow-y-auto border border-gray-100 rounded-lg">
+                                <table className="w-full text-sm">
+                                  <thead className="bg-gray-50 text-left text-gray-600">
+                                    <tr>
+                                      <th className="px-3 py-2 font-semibold">Date</th>
+                                      <th className="px-3 py-2 font-semibold">Item</th>
+                                      <th className="px-3 py-2 font-semibold text-right">Count</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y">
+                                    {historyRows.map((row, index) => (
+                                      <tr key={`${team.id}-history-${index}`}>
+                                        <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{row.dateLabel}</td>
+                                        <td className="px-3 py-2 text-gray-800">{row.itemLabel}</td>
+                                        <td className="px-3 py-2 text-gray-900 text-right font-semibold">{row.count}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            );
+                          })()}
+                        </div>
                       </div>
                     );
                   })}
@@ -3068,6 +3175,48 @@ const addTeam = async () => {
                             </div>
                           </div>
                         </div>
+                      </div>
+                      
+                      {/* Issuance History */}
+                      <div className="bg-white rounded-lg shadow-md p-6">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-lg font-semibold text-gray-800">Inventory Issuance History</h3>
+                          <span className="text-xs text-gray-500">Complete history</span>
+                        </div>
+                        {(() => {
+                          const historyRows = buildIssueHistoryRows(team.issueHistory || []);
+                          
+                          if (historyRows.length === 0) {
+                            return (
+                              <div className="text-center text-gray-500 bg-gray-50 border border-dashed border-gray-200 rounded-lg p-6">
+                                No issuance history found for your team yet.
+                              </div>
+                            );
+                          }
+                          
+                          return (
+                            <div className="max-h-64 overflow-y-auto border border-gray-100 rounded-lg">
+                              <table className="w-full text-sm">
+                                <thead className="bg-gray-50 text-left text-gray-600">
+                                  <tr>
+                                    <th className="px-4 py-2 font-semibold">Date</th>
+                                    <th className="px-4 py-2 font-semibold">Item</th>
+                                    <th className="px-4 py-2 font-semibold text-right">Count</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y">
+                                  {historyRows.map((row, index) => (
+                                    <tr key={`team-view-history-${index}`}>
+                                      <td className="px-4 py-2 text-gray-700 whitespace-nowrap">{row.dateLabel}</td>
+                                      <td className="px-4 py-2 text-gray-800">{row.itemLabel}</td>
+                                      <td className="px-4 py-2 text-gray-900 text-right font-semibold">{row.count}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   );
@@ -3914,7 +4063,7 @@ const addTeam = async () => {
                       <div className="space-y-4">
                         {/* Contact Person 1 */}
                         <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
-                          <h6 className="text-xs font-semibold text-gray-700 mb-2">Principal Details</h6>
+                          <h6 className="text-xs font-semibold text-gray-700 mb-2">Contact Person 1</h6>
                           <div className="grid grid-cols-2 gap-4">
                             <div>
                               <p className="text-sm text-gray-600">Name</p>
@@ -3929,7 +4078,7 @@ const addTeam = async () => {
                         
                         {/* Contact Person 2 */}
                         <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
-                          <h6 className="text-xs font-semibold text-gray-700 mb-2">Coordinator Details</h6>
+                          <h6 className="text-xs font-semibold text-gray-700 mb-2">Contact Person 2</h6>
                           <div className="grid grid-cols-2 gap-4">
                             <div>
                               <p className="text-sm text-gray-600">Name</p>
