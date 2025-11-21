@@ -1627,35 +1627,43 @@ const addTeam = async () => {
     return filtered;
   };
 
-  // Export to CSV
-  const exportToCSV = () => {
-    const filtered = getFilteredSchools();
-    const headers = ['Team', 'Area', 'School', 'Announcement', 'Telugu Sets', 'English Sets', 'Telugu Taken Back', 'English Taken Back', 'Telugu On Hold', 'English On Hold', 'Free Sets', 'Money Collected', 'Per Set', 'Settled', 'Date'];
-    const rows = filtered.map(s => [
-      teams.find(t => t.id === s.teamId)?.name,
-      s.areaName,
-      s.schoolName,
-      s.announcementStatus,
-      s.teluguSetsDistributed,
-      s.englishSetsDistributed,
-      s.teluguSetsTakenBack,
-      s.englishSetsTakenBack,
-      s.teluguSetsOnHold,
-      s.englishSetsOnHold,
-      s.freeSetsGiven,
-      s.moneyCollected,
-      s.perSetPrice,
-      s.moneySettled ? 'Yes' : 'No',
-      s.date
-    ]);
-    
-    const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
+  const sanitizeFilename = (name = 'export') => {
+    return name
+      .toString()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '') || 'export';
+  };
+
+  const exportTableToCSV = (tableId, filenamePrefix = 'export') => {
+    const table = document.getElementById(tableId);
+    if (!table) {
+      console.warn(`Table with id "${tableId}" not found`);
+      return;
+    }
+
+    const rows = Array.from(table.querySelectorAll('tr')).map((row) =>
+      Array.from(row.querySelectorAll('th, td'))
+        .map((cell) => {
+          const text = cell.innerText.replace(/\s*\n\s*/g, ' ').trim();
+          return `"${text.replace(/"/g, '""')}"`;
+        })
+        .join(',')
+    );
+
+    if (rows.length === 0) {
+      console.warn(`Table with id "${tableId}" has no rows to export`);
+      return;
+    }
+
+    const csv = rows.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `gita_distribution_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `${sanitizeFilename(filenamePrefix)}_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
+    window.URL.revokeObjectURL(url);
   };
 
   // Login Screen
@@ -1927,13 +1935,6 @@ const addTeam = async () => {
                   </button>
                 )}
                 
-                <button
-                  onClick={exportToCSV}
-                  className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>Export Report</span>
-                </button>
               </div>
             </div>
           </div>
@@ -1996,8 +1997,21 @@ const addTeam = async () => {
 
             {/* Schools Table */}
             <div className="bg-white rounded-lg shadow-md overflow-hidden">
+              <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b bg-gray-50">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800">Schools</h3>
+                  <p className="text-sm text-gray-500">Filtered list of all schools</p>
+                </div>
+                <button
+                  onClick={() => exportTableToCSV('schools-table', 'schools')}
+                  className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Export CSV</span>
+                </button>
+              </div>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[700px]">
+                <table id="schools-table" className="w-full min-w-[700px]">
                   <thead className="bg-gray-50 border-b">
                     <tr>
                       {currentUser.role === 'admin' && <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Team</th>}
@@ -2010,6 +2024,7 @@ const addTeam = async () => {
                       <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Money</th>
                       <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Difference</th>
                       <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Actions</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Comments</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -2084,6 +2099,9 @@ const addTeam = async () => {
                             </button>
                           </div>
                         </td>
+                        <td className="px-4 py-3 text-sm text-gray-700">
+                          {school.notes?.trim() ? school.notes : '-'}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -2156,8 +2174,21 @@ const addTeam = async () => {
 
             {/* Updates List */}
             <div className="bg-white rounded-lg shadow-md overflow-hidden">
+              <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b bg-gray-50">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800">School Updates</h3>
+                  <p className="text-sm text-gray-500">Incremental updates history</p>
+                </div>
+                <button
+                  onClick={() => exportTableToCSV('school-updates-table', 'school_updates')}
+                  className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Export CSV</span>
+                </button>
+              </div>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[700px]">
+                <table id="school-updates-table" className="w-full min-w-[700px]">
                   <thead className="bg-orange-100">
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Date</th>
@@ -2391,7 +2422,20 @@ const addTeam = async () => {
             <h2 className="text-2xl font-bold text-gray-800">Set Requirements</h2>
 
             <div className="bg-white rounded-lg shadow-md overflow-hidden">
-              <table className="w-full min-w-[700px]">
+              <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b bg-gray-50">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800">Requirements</h3>
+                  <p className="text-sm text-gray-500">All team requirement requests</p>
+                </div>
+                <button
+                  onClick={() => exportTableToCSV('requirements-table', 'requirements')}
+                  className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Export CSV</span>
+                </button>
+              </div>
+              <table id="requirements-table" className="w-full min-w-[700px]">
                 <thead className="bg-gray-50 border-b">
                   <tr>
                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
@@ -2484,12 +2528,21 @@ const addTeam = async () => {
               <>
                 {/* Money Settlement Summary Table */}
                 <div className="bg-white rounded-lg shadow-md overflow-hidden">
-                  <div className="p-4 bg-orange-50 border-b">
-                    <h3 className="text-lg font-semibold text-orange-900">Team Settlement Summary</h3>
-                    <p className="text-sm text-orange-700">Overview of settlements by team</p>
+                  <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-orange-50 border-b">
+                    <div>
+                      <h3 className="text-lg font-semibold text-orange-900">Team Settlement Summary</h3>
+                      <p className="text-sm text-orange-700">Overview of settlements by team</p>
+                    </div>
+                    <button
+                      onClick={() => exportTableToCSV('settlement-summary-table', 'settlement_summary')}
+                      className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Export CSV</span>
+                    </button>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[700px]">
+                    <table id="settlement-summary-table" className="w-full min-w-[700px]">
                       <thead className="bg-gray-50 border-b">
                         <tr>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Team</th>
@@ -2518,12 +2571,21 @@ const addTeam = async () => {
 
                 {/* Inventory Issuance History Table */}
                 <div className="bg-white rounded-lg shadow-md overflow-hidden">
-                  <div className="p-4 bg-blue-50 border-b">
-                    <h3 className="text-lg font-semibold text-blue-900">Inventory Issuance History</h3>
-                    <p className="text-sm text-blue-700">Complete history of all inventory items issued to teams</p>
+                  <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-blue-50 border-b">
+                    <div>
+                      <h3 className="text-lg font-semibold text-blue-900">Inventory Issuance History</h3>
+                      <p className="text-sm text-blue-700">Complete history of all inventory items issued to teams</p>
+                    </div>
+                    <button
+                      onClick={() => exportTableToCSV('settlement-issuance-table', 'inventory_issuance')}
+                      className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Export CSV</span>
+                    </button>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[700px]">
+                    <table id="settlement-issuance-table" className="w-full min-w-[700px]">
                       <thead className="bg-gray-50 border-b">
                         <tr>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date Issued</th>
@@ -2600,11 +2662,18 @@ const addTeam = async () => {
 
                 {/* Individual Settlement Requests */}
                 <div className="bg-white rounded-lg shadow-md overflow-hidden">
-                  <div className="p-4 border-b bg-gray-50">
+                  <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b bg-gray-50">
                     <h3 className="text-lg font-semibold text-gray-800">Pending Settlement Requests</h3>
+                    <button
+                      onClick={() => exportTableToCSV('pending-settlements-table', 'pending_settlements')}
+                      className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Export CSV</span>
+                    </button>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[700px]">
+                    <table id="pending-settlements-table" className="w-full min-w-[700px]">
                       <thead className="bg-gray-50 border-b">
                         <tr>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
@@ -2917,12 +2986,21 @@ const addTeam = async () => {
                         </div>
                         
                         <div className="mt-6 pt-4 border-t border-gray-100">
-                          <div className="flex items-center justify-between mb-3">
-                            <h4 className="text-sm font-semibold text-gray-700">Recent Issuance History</h4>
-                            <span className="text-xs text-gray-500">Latest 10 entries</span>
+                          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                            <div>
+                              <h4 className="text-sm font-semibold text-gray-700">Recent Issuance History</h4>
+                              <span className="text-xs text-gray-500">Latest 10 entries</span>
+                            </div>
+                            <button
+                              onClick={() => exportTableToCSV(`team-${team.id}-history-table`, `${team.name || 'team'}_issuance_history`)}
+                              className="flex items-center space-x-1 text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 transition-colors"
+                            >
+                              <Download className="w-3 h-3" />
+                              <span>Export CSV</span>
+                            </button>
                           </div>
                           {(() => {
-                            const historyEntries = formatIssueHistoryEntries(team.issueHistory || []);
+                            const historyEntries = formatIssueHistoryEntries(team.issueHistory || []).slice(0, 10);
                             
                             if (historyEntries.length === 0) {
                               return (
@@ -2934,7 +3012,7 @@ const addTeam = async () => {
                             
                             return (
                               <div className="overflow-x-auto border border-gray-100 rounded-lg">
-                                <table className="w-full text-sm min-w-[600px]">
+                                <table id={`team-${team.id}-history-table`} className="w-full text-sm min-w-[600px]">
                                   <thead className="bg-gray-50 text-left text-gray-600">
                                     <tr>
                                       <th className="px-3 py-2 font-semibold">Date</th>
@@ -2965,12 +3043,21 @@ const addTeam = async () => {
 
                 {/* Inventory Issuance History Table */}
                 <div className="bg-white rounded-lg shadow-md overflow-hidden">
-                  <div className="p-4 bg-blue-50 border-b">
-                    <h3 className="text-lg font-semibold text-blue-900">Inventory Issuance History</h3>
-                    <p className="text-sm text-blue-700">Complete history of all inventory items issued to teams</p>
+                  <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-blue-50 border-b">
+                    <div>
+                      <h3 className="text-lg font-semibold text-blue-900">Inventory Issuance History</h3>
+                      <p className="text-sm text-blue-700">Complete history of all inventory items issued to teams</p>
+                    </div>
+                    <button
+                      onClick={() => exportTableToCSV('inventory-issuance-table', 'inventory_issuance')}
+                      className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Export CSV</span>
+                    </button>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[700px]">
+                    <table id="inventory-issuance-table" className="w-full min-w-[700px]">
                       <thead className="bg-gray-50 border-b">
                         <tr>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date Issued</th>
@@ -3205,9 +3292,18 @@ const addTeam = async () => {
                       
                       {/* Issuance History */}
                       <div className="bg-white rounded-lg shadow-md p-6">
-                        <div className="flex items-center justify-between mb-4">
-                          <h3 className="text-lg font-semibold text-gray-800">Inventory Issuance History</h3>
-                          <span className="text-xs text-gray-500">Complete history</span>
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-800">Inventory Issuance History</h3>
+                            <span className="text-xs text-gray-500">Complete history</span>
+                          </div>
+                          <button
+                            onClick={() => exportTableToCSV('team-view-history-table', 'my_team_issuance_history')}
+                            className="flex items-center space-x-2 bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 transition-colors text-sm"
+                          >
+                            <Download className="w-4 h-4" />
+                            <span>Export CSV</span>
+                          </button>
                         </div>
                         {(() => {
                           const historyEntries = formatIssueHistoryEntries(team.issueHistory || []);
@@ -3222,7 +3318,7 @@ const addTeam = async () => {
                           
                           return (
                             <div className="max-h-64 overflow-y-auto border border-gray-100 rounded-lg">
-                              <table className="w-full text-sm min-w-[600px]">
+                              <table id="team-view-history-table" className="w-full text-sm min-w-[600px]">
                                 <thead className="bg-gray-50 text-left text-gray-600">
                                   <tr>
                                     <th className="px-4 py-2 font-semibold">Date</th>
@@ -3476,12 +3572,21 @@ const addTeam = async () => {
               
             {/* Inventory History Table */}
             <div className="bg-white rounded-lg shadow-md overflow-hidden">
-              <div className="p-4 bg-blue-50 border-b">
-                <h3 className="text-lg font-semibold text-blue-900">Inventory History</h3>
-                <p className="text-sm text-blue-700">All inventory additions and issues</p>
+              <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-blue-50 border-b">
+                <div>
+                  <h3 className="text-lg font-semibold text-blue-900">Inventory History</h3>
+                  <p className="text-sm text-blue-700">All inventory additions and issues</p>
+                </div>
+                <button
+                  onClick={() => exportTableToCSV('master-inventory-history-table', 'master_inventory_history')}
+                  className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Export CSV</span>
+                </button>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[800px]">
+                <table id="master-inventory-history-table" className="w-full min-w-[800px]">
                   <thead className="bg-gray-50 border-b">
                     <tr>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
