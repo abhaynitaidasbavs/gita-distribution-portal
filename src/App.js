@@ -1542,11 +1542,38 @@ const addTeam = async () => {
   // Expense management
   const submitExpense = async () => {
     try {
+      // Validation
+      if (!currentUser) {
+        alert('User not logged in. Please log in again.');
+        return;
+      }
+
+      if (currentUser.role !== 'admin' && !currentUser.teamId) {
+        alert('Team ID not found. Please log in again.');
+        return;
+      }
+
+      const amount = parseFloat(expenseForm.amount);
+      if (!amount || amount <= 0) {
+        alert('Please enter a valid expense amount greater than 0.');
+        return;
+      }
+
+      if (!expenseForm.description || expenseForm.description.trim() === '') {
+        alert('Please enter a description for the expense.');
+        return;
+      }
+
+      if (!expenseForm.date) {
+        alert('Please select a date for the expense.');
+        return;
+      }
+
       const expenseData = {
         teamId: currentUser.role === 'admin' ? 'admin' : currentUser.teamId,
         teamName: currentUser.role === 'admin' ? 'Admin' : currentUser.name,
-        amount: parseFloat(expenseForm.amount),
-        description: expenseForm.description,
+        amount: amount,
+        description: expenseForm.description.trim(),
         category: expenseForm.category,
         date: expenseForm.date,
         submittedAt: new Date().toISOString(),
@@ -1586,17 +1613,48 @@ const addTeam = async () => {
       alert('Expense submitted successfully!');
     } catch (error) {
       console.error('Error submitting expense:', error);
-      alert('Error submitting expense. Please try again.');
+      
+      // More specific error messages
+      let errorMessage = 'Error submitting expense. Please try again.';
+      
+      if (error.code === 'permission-denied') {
+        errorMessage = 'Permission denied. You may not have access to submit expenses.';
+      } else if (error.code === 'unavailable') {
+        errorMessage = 'Network error. Please check your internet connection and try again.';
+      } else if (error.code === 'failed-precondition') {
+        errorMessage = 'Database error. Please try again in a moment.';
+      } else if (error.message) {
+        errorMessage = `Error: ${error.message}`;
+      }
+      
+      alert(errorMessage);
     }
   };
 
   // Bank submission management (admin only)
   const submitBankSubmission = async () => {
     try {
+      // Validation
+      if (!currentUser || currentUser.role !== 'admin') {
+        alert('Only admin can submit to bank.');
+        return;
+      }
+
+      const amount = parseFloat(bankSubmissionForm.amount);
+      if (!amount || amount <= 0) {
+        alert('Please enter a valid amount greater than 0.');
+        return;
+      }
+
+      if (!bankSubmissionForm.date) {
+        alert('Please select a date.');
+        return;
+      }
+
       const submissionData = {
-        amount: parseFloat(bankSubmissionForm.amount),
+        amount: amount,
         date: bankSubmissionForm.date,
-        notes: bankSubmissionForm.notes,
+        notes: bankSubmissionForm.notes || '',
         submittedAt: new Date().toISOString(),
         submittedBy: currentUser.uid
       };
@@ -1612,7 +1670,21 @@ const addTeam = async () => {
       alert('Bank submission recorded successfully!');
     } catch (error) {
       console.error('Error submitting bank submission:', error);
-      alert('Error submitting bank submission. Please try again.');
+      
+      // More specific error messages
+      let errorMessage = 'Error submitting bank submission. Please try again.';
+      
+      if (error.code === 'permission-denied') {
+        errorMessage = 'Permission denied. Only admin can submit to bank.';
+      } else if (error.code === 'unavailable') {
+        errorMessage = 'Network error. Please check your internet connection and try again.';
+      } else if (error.code === 'failed-precondition') {
+        errorMessage = 'Database error. Please try again in a moment.';
+      } else if (error.message) {
+        errorMessage = `Error: ${error.message}`;
+      }
+      
+      alert(errorMessage);
     }
   };
 
