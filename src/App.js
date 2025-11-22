@@ -209,6 +209,72 @@ const GitaDistributionPortal = () => {
     return () => unsubscribeSettlements();
   }, [isLoggedIn]);
 
+  // Fetch expenses in real-time
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    
+    const unsubscribeExpenses = onSnapshot(
+      collection(db, 'expenses'), 
+      (snapshot) => {
+        const expensesData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setExpenses(expensesData);
+      }
+    );
+    
+    return () => unsubscribeExpenses();
+  }, [isLoggedIn]);
+
+  // Fetch bank submissions in real-time (admin only)
+  useEffect(() => {
+    if (!isLoggedIn || !currentUser || currentUser.role !== 'admin') return;
+    
+    const unsubscribeBankSubmissions = onSnapshot(
+      collection(db, 'bankSubmissions'), 
+      (snapshot) => {
+        const submissionsData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setBankSubmissions(submissionsData);
+      }
+    );
+    
+    return () => unsubscribeBankSubmissions();
+  }, [isLoggedIn, currentUser]);
+
+  // Fetch admin account in real-time (admin only)
+  useEffect(() => {
+    if (!isLoggedIn || !currentUser || currentUser.role !== 'admin') return;
+    
+    const adminAccountRef = doc(db, 'adminAccount', 'main');
+    const unsubscribeAdminAccount = onSnapshot(
+      adminAccountRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          setAdminAccount({
+            totalReceived: data.totalReceived || 0,
+            totalExpenses: data.totalExpenses || 0,
+            balance: (data.totalReceived || 0) - (data.totalExpenses || 0)
+          });
+        } else {
+          // Initialize admin account if it doesn't exist
+          setDoc(adminAccountRef, {
+            totalReceived: 0,
+            totalExpenses: 0,
+            balance: 0
+          });
+          setAdminAccount({ totalReceived: 0, totalExpenses: 0, balance: 0 });
+        }
+      }
+    );
+    
+    return () => unsubscribeAdminAccount();
+  }, [isLoggedIn, currentUser]);
+
   // Fetch master inventory in real-time (admin only)
   useEffect(() => {
     if (!isLoggedIn || !currentUser || currentUser.role !== 'admin') return;
@@ -298,6 +364,15 @@ const GitaDistributionPortal = () => {
   const [settlementForm, setSettlementForm] = useState({
     amount: 0, paymentMethod: 'Cash', date: new Date().toISOString().split('T')[0], notes: ''
   });
+  const [expenses, setExpenses] = useState([]);
+  const [expenseForm, setExpenseForm] = useState({
+    amount: 0, description: '', date: new Date().toISOString().split('T')[0], category: 'Other'
+  });
+  const [bankSubmissions, setBankSubmissions] = useState([]);
+  const [bankSubmissionForm, setBankSubmissionForm] = useState({
+    amount: 0, date: new Date().toISOString().split('T')[0], notes: ''
+  });
+  const [adminAccount, setAdminAccount] = useState({ totalReceived: 0, totalExpenses: 0, balance: 0 });
 
   // Form states
   const [schoolForm, setSchoolForm] = useState({
@@ -1281,6 +1356,7 @@ const addTeam = async () => {
       const expectedSettlement = totalInventoryIssued * (Number(perSetPrice) > 0 ? Number(perSetPrice) : 200);
 
       const totalMoneySettled = parseInt(team.totalMoneySettled || 0);
+      const totalExpenses = getTotalTeamExpenses(team.id);
       
       return {
         teamId: team.id,
@@ -1288,6 +1364,7 @@ const addTeam = async () => {
         totalInventoryIssued,
         expectedSettlement,
         totalMoneySettled,
+        totalExpenses,
         balance: expectedSettlement - totalMoneySettled
       };
     });
@@ -1412,6 +1489,25 @@ const addTeam = async () => {
         }
       }
 
+      // Add amount to admin account
+      const adminAccountRef = doc(db, 'adminAccount', 'main');
+      const adminAccountSnap = await getDoc(adminAccountRef);
+      
+      if (adminAccountSnap.exists()) {
+        const currentData = adminAccountSnap.data();
+        const newTotalReceived = (currentData.totalReceived || 0) + parseFloat(settlementData.amount);
+        await updateDoc(adminAccountRef, {
+          totalReceived: newTotalReceived,
+          balance: newTotalReceived - (currentData.totalExpenses || 0)
+        });
+      } else {
+        await setDoc(adminAccountRef, {
+          totalReceived: parseFloat(settlementData.amount),
+          totalExpenses: 0,
+          balance: parseFloat(settlementData.amount)
+        });
+      }
+
       alert('Money settlement approved!');
     } catch (error) {
       console.error('Error approving settlement:', error);
@@ -1441,6 +1537,118 @@ const addTeam = async () => {
       console.error('Error declining settlement:', error);
       alert('Error declining settlement. Please try again.');
     }
+  };
+
+  // Expense management
+  const submitExpense = async () => {
+    try {
+      const expenseData = {
+        teamId: currentUser.role === 'admin' ? 'admin' : currentUser.teamId,
+        teamName: currentUser.role === 'admin' ? 'Admin' : currentUser.name,
+        amount: parseFloat(expenseForm.amount),
+        description: expenseForm.description,
+        category: expenseForm.category,
+        date: expenseForm.date,
+        submittedAt: new Date().toISOString(),
+        submittedBy: currentUser.uid
+      };
+
+      await addDoc(collection(db, 'expenses'), expenseData);
+      
+      // If admin, update admin account expenses
+      if (currentUser.role === 'admin') {
+        const adminAccountRef = doc(db, 'adminAccount', 'main');
+        const adminAccountSnap = await getDoc(adminAccountRef);
+        
+        if (adminAccountSnap.exists()) {
+          const currentData = adminAccountSnap.data();
+          const newTotalExpenses = (currentData.totalExpenses || 0) + parseFloat(expenseForm.amount);
+          await updateDoc(adminAccountRef, {
+            totalExpenses: newTotalExpenses,
+            balance: (currentData.totalReceived || 0) - newTotalExpenses
+          });
+        } else {
+          await setDoc(adminAccountRef, {
+            totalReceived: 0,
+            totalExpenses: parseFloat(expenseForm.amount),
+            balance: -parseFloat(expenseForm.amount)
+          });
+        }
+      }
+      
+      setExpenseForm({
+        amount: 0,
+        description: '',
+        date: new Date().toISOString().split('T')[0],
+        category: 'Other'
+      });
+      setShowModal(false);
+      alert('Expense submitted successfully!');
+    } catch (error) {
+      console.error('Error submitting expense:', error);
+      alert('Error submitting expense. Please try again.');
+    }
+  };
+
+  // Bank submission management (admin only)
+  const submitBankSubmission = async () => {
+    try {
+      const submissionData = {
+        amount: parseFloat(bankSubmissionForm.amount),
+        date: bankSubmissionForm.date,
+        notes: bankSubmissionForm.notes,
+        submittedAt: new Date().toISOString(),
+        submittedBy: currentUser.uid
+      };
+
+      await addDoc(collection(db, 'bankSubmissions'), submissionData);
+      
+      setBankSubmissionForm({
+        amount: 0,
+        date: new Date().toISOString().split('T')[0],
+        notes: ''
+      });
+      setShowModal(false);
+      alert('Bank submission recorded successfully!');
+    } catch (error) {
+      console.error('Error submitting bank submission:', error);
+      alert('Error submitting bank submission. Please try again.');
+    }
+  };
+
+  // Helper functions for expense calculations
+  const getTeamExpensesTillSettlement = (teamId, settlementDate) => {
+    const teamExpenses = expenses.filter(e => e.teamId === teamId);
+    if (!settlementDate) return teamExpenses;
+    
+    return teamExpenses.filter(e => {
+      const expenseDate = new Date(e.date);
+      const settlementDateObj = new Date(settlementDate);
+      return expenseDate <= settlementDateObj;
+    });
+  };
+
+  const getTotalTeamExpenses = (teamId) => {
+    return expenses
+      .filter(e => e.teamId === teamId)
+      .reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
+  };
+
+  const getAdminExpensesTillBankSubmission = (submissionDate) => {
+    const adminExpenses = expenses.filter(e => e.teamId === 'admin');
+    if (!submissionDate) return adminExpenses;
+    
+    return adminExpenses.filter(e => {
+      const expenseDate = new Date(e.date);
+      const submissionDateObj = new Date(submissionDate);
+      return expenseDate <= submissionDateObj;
+    });
+  };
+
+  const getTotalAdminExpenses = () => {
+    return expenses
+      .filter(e => e.teamId === 'admin')
+      .reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
   };
   // Reset forms
   const resetSchoolForm = () => {
@@ -1803,6 +2011,12 @@ const addTeam = async () => {
                   Money Settlements
                 </button>
                 <button
+                  onClick={() => setActiveView('expenses')}
+                  className={`px-6 py-3 font-medium ${activeView === 'expenses' ? 'text-orange-600 border-b-2 border-orange-600' : 'text-gray-600 hover:text-orange-600'}`}
+                >
+                  Expenses
+                </button>
+                <button
                   onClick={() => setActiveView('masterInventory')}
                   className={`px-6 py-3 font-medium ${activeView === 'masterInventory' ? 'text-orange-600 border-b-2 border-orange-600' : 'text-gray-600 hover:text-orange-600'}`}
                 >
@@ -1823,6 +2037,12 @@ const addTeam = async () => {
                   className={`px-6 py-3 font-medium ${activeView === 'settlements' ? 'text-orange-600 border-b-2 border-orange-600' : 'text-gray-600 hover:text-orange-600'}`}
                 >
                   Money Settlement
+                </button>
+                <button
+                  onClick={() => setActiveView('expenses')}
+                  className={`px-6 py-3 font-medium ${activeView === 'expenses' ? 'text-orange-600 border-b-2 border-orange-600' : 'text-gray-600 hover:text-orange-600'}`}
+                >
+                  Expenses
                 </button>
               </>
             )}
@@ -2549,6 +2769,7 @@ const addTeam = async () => {
                           <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Total Inventory Issued</th>
                           <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Expected Settlement (₹)</th>
                           <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Total Money Settled (₹)</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Total Expenses (₹)</th>
                           <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Balance (₹)</th>
                         </tr>
                       </thead>
@@ -2559,6 +2780,7 @@ const addTeam = async () => {
                             <td className="px-4 py-3 text-sm text-right text-gray-700">{summary.totalInventoryIssued}</td>
                             <td className="px-4 py-3 text-sm text-right text-purple-700 font-semibold">₹{summary.expectedSettlement.toLocaleString()}</td>
                             <td className="px-4 py-3 text-sm text-right text-green-700 font-semibold">₹{summary.totalMoneySettled.toLocaleString()}</td>
+                            <td className="px-4 py-3 text-sm text-right text-red-700 font-semibold">₹{summary.totalExpenses.toLocaleString()}</td>
                             <td className={`px-4 py-3 text-sm text-right font-semibold ${summary.balance >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                               {summary.balance >= 0 ? '+' : ''}₹{summary.balance.toLocaleString()}
                             </td>
@@ -2761,6 +2983,287 @@ const addTeam = async () => {
                   )}
                 </div>
               </div>
+            )}
+          </div>
+        )}
+
+        {/* Expenses View */}
+        {activeView === 'expenses' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-800">Expenses</h2>
+              <button
+                onClick={() => {
+                  setModalType('expense');
+                  setExpenseForm({
+                    amount: 0,
+                    description: '',
+                    date: new Date().toISOString().split('T')[0],
+                    category: 'Other'
+                  });
+                  setShowModal(true);
+                }}
+                className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Expense</span>
+              </button>
+            </div>
+
+            {currentUser.role === 'admin' ? (
+              <>
+                {/* Admin Account Summary */}
+                <div className="bg-white rounded-lg shadow-md p-6">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Admin Account Summary</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-green-50 p-4 rounded-lg">
+                      <p className="text-sm text-gray-600">Total Received</p>
+                      <p className="text-2xl font-bold text-green-700">₹{adminAccount.totalReceived.toLocaleString()}</p>
+                    </div>
+                    <div className="bg-red-50 p-4 rounded-lg">
+                      <p className="text-sm text-gray-600">Total Expenses</p>
+                      <p className="text-2xl font-bold text-red-700">₹{adminAccount.totalExpenses.toLocaleString()}</p>
+                    </div>
+                    <div className={`p-4 rounded-lg ${adminAccount.balance >= 0 ? 'bg-blue-50' : 'bg-orange-50'}`}>
+                      <p className="text-sm text-gray-600">Balance</p>
+                      <p className={`text-2xl font-bold ${adminAccount.balance >= 0 ? 'text-blue-700' : 'text-orange-700'}`}>
+                        ₹{adminAccount.balance.toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bank Submissions Table */}
+                <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                  <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-blue-50 border-b">
+                    <div>
+                      <h3 className="text-lg font-semibold text-blue-900">Bank Submissions</h3>
+                      <p className="text-sm text-blue-700">History of amounts submitted to bank</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setModalType('bankSubmission');
+                        setBankSubmissionForm({
+                          amount: 0,
+                          date: new Date().toISOString().split('T')[0],
+                          notes: ''
+                        });
+                        setShowModal(true);
+                      }}
+                      className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Submit to Bank</span>
+                    </button>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[600px]">
+                      <thead className="bg-gray-50 border-b">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Amount (₹)</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Notes</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Expenses Till Date (₹)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {bankSubmissions.sort((a, b) => new Date(b.date) - new Date(a.date)).map(submission => {
+                          const expensesTillDate = getAdminExpensesTillBankSubmission(submission.date)
+                            .reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
+                          return (
+                            <tr key={submission.id} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 text-sm text-gray-600">{submission.date}</td>
+                              <td className="px-4 py-3 text-sm text-right text-green-700 font-semibold">₹{parseFloat(submission.amount).toLocaleString()}</td>
+                              <td className="px-4 py-3 text-sm text-gray-700">{submission.notes || 'N/A'}</td>
+                              <td className="px-4 py-3 text-sm text-right text-red-700 font-semibold">₹{expensesTillDate.toLocaleString()}</td>
+                            </tr>
+                          );
+                        })}
+                        {bankSubmissions.length === 0 && (
+                          <tr>
+                            <td colSpan="4" className="px-4 py-12 text-center text-gray-500">
+                              <DollarSign className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                              <p>No bank submissions recorded</p>
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                      <tfoot className="bg-gray-50">
+                        <tr>
+                          <td colSpan="3" className="px-4 py-3 text-sm font-semibold text-gray-700 text-right">Grand Total Expenses:</td>
+                          <td className="px-4 py-3 text-sm text-right font-bold text-red-700">₹{getTotalAdminExpenses().toLocaleString()}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Admin Expenses Table */}
+                <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                  <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-red-50 border-b">
+                    <div>
+                      <h3 className="text-lg font-semibold text-red-900">All Expenses</h3>
+                      <p className="text-sm text-red-700">Complete history of all expenses</p>
+                    </div>
+                    <button
+                      onClick={() => exportTableToCSV('admin-expenses-table', 'admin_expenses')}
+                      className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Export CSV</span>
+                    </button>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table id="admin-expenses-table" className="w-full min-w-[600px]">
+                      <thead className="bg-gray-50 border-b">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Description</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Category</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Amount (₹)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {expenses.filter(e => e.teamId === 'admin').sort((a, b) => new Date(b.date) - new Date(a.date)).map(expense => (
+                          <tr key={expense.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-sm text-gray-600">{expense.date}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900">{expense.description}</td>
+                            <td className="px-4 py-3 text-sm text-gray-700">{expense.category}</td>
+                            <td className="px-4 py-3 text-sm text-right text-red-700 font-semibold">₹{parseFloat(expense.amount).toLocaleString()}</td>
+                          </tr>
+                        ))}
+                        {expenses.filter(e => e.teamId === 'admin').length === 0 && (
+                          <tr>
+                            <td colSpan="4" className="px-4 py-12 text-center text-gray-500">
+                              <DollarSign className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                              <p>No expenses recorded</p>
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Team Expenses Summary */}
+                <div className="bg-white rounded-lg shadow-md p-6">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Expense Summary</h3>
+                  <div className="bg-red-50 p-4 rounded-lg">
+                    <p className="text-sm text-gray-600">Grand Total Expenses</p>
+                    <p className="text-2xl font-bold text-red-700">₹{getTotalTeamExpenses(currentUser.teamId).toLocaleString()}</p>
+                  </div>
+                </div>
+
+                {/* Expenses by Settlement */}
+                <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                  <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-orange-50 border-b">
+                    <div>
+                      <h3 className="text-lg font-semibold text-orange-900">Expenses by Settlement</h3>
+                      <p className="text-sm text-orange-700">Expenditure till each settlement request approval</p>
+                    </div>
+                    <button
+                      onClick={() => exportTableToCSV('team-expenses-table', 'team_expenses')}
+                      className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Export CSV</span>
+                    </button>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table id="team-expenses-table" className="w-full min-w-[600px]">
+                      <thead className="bg-gray-50 border-b">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Settlement Date</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Settlement Amount (₹)</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Expenses Till Date (₹)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {moneySettlements
+                          .filter(s => s.teamId === currentUser.teamId)
+                          .sort((a, b) => new Date(b.date) - new Date(a.date))
+                          .map(settlement => {
+                            const expensesTillDate = getTeamExpensesTillSettlement(currentUser.teamId, settlement.date)
+                              .reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
+                            return (
+                              <tr key={settlement.id} className="hover:bg-gray-50">
+                                <td className="px-4 py-3 text-sm text-gray-600">{settlement.date}</td>
+                                <td className="px-4 py-3 text-sm text-green-700 font-semibold">₹{parseFloat(settlement.amount).toLocaleString()}</td>
+                                <td className="px-4 py-3 text-center">
+                                  <span className={`px-3 py-1 text-xs rounded-full ${
+                                    settlement.status === 'approved' ? 'bg-green-100 text-green-700' : 
+                                    settlement.status === 'declined' ? 'bg-red-100 text-red-700' : 
+                                    'bg-yellow-100 text-yellow-700'
+                                  }`}>
+                                    {settlement.status}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-sm text-right text-red-700 font-semibold">₹{expensesTillDate.toLocaleString()}</td>
+                              </tr>
+                            );
+                          })}
+                        {moneySettlements.filter(s => s.teamId === currentUser.teamId).length === 0 && (
+                          <tr>
+                            <td colSpan="4" className="px-4 py-12 text-center text-gray-500">
+                              <DollarSign className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                              <p>No settlements found</p>
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                      <tfoot className="bg-gray-50">
+                        <tr>
+                          <td colSpan="3" className="px-4 py-3 text-sm font-semibold text-gray-700 text-right">Grand Total Expenses:</td>
+                          <td className="px-4 py-3 text-sm text-right font-bold text-red-700">₹{getTotalTeamExpenses(currentUser.teamId).toLocaleString()}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+
+                {/* All Team Expenses */}
+                <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                  <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-red-50 border-b">
+                    <div>
+                      <h3 className="text-lg font-semibold text-red-900">All Expenses</h3>
+                      <p className="text-sm text-red-700">Complete history of all expenses</p>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[600px]">
+                      <thead className="bg-gray-50 border-b">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Description</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Category</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Amount (₹)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {expenses.filter(e => e.teamId === currentUser.teamId).sort((a, b) => new Date(b.date) - new Date(a.date)).map(expense => (
+                          <tr key={expense.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-sm text-gray-600">{expense.date}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900">{expense.description}</td>
+                            <td className="px-4 py-3 text-sm text-gray-700">{expense.category}</td>
+                            <td className="px-4 py-3 text-sm text-right text-red-700 font-semibold">₹{parseFloat(expense.amount).toLocaleString()}</td>
+                          </tr>
+                        ))}
+                        {expenses.filter(e => e.teamId === currentUser.teamId).length === 0 && (
+                          <tr>
+                            <td colSpan="4" className="px-4 py-12 text-center text-gray-500">
+                              <DollarSign className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                              <p>No expenses recorded</p>
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
             )}
           </div>
         )}
@@ -3669,6 +4172,8 @@ const addTeam = async () => {
                 {modalType === 'requirement' && 'Raise Requirement'}
                 {modalType === 'viewSchool' && 'School Details'}
                 {modalType === 'settlement' && 'Submit Money Settlement'}
+                {modalType === 'expense' && 'Add Expense'}
+                {modalType === 'bankSubmission' && 'Submit to Bank'}
                 {modalType === 'issueInventory' && 'Issue Inventory to Team'}
                 {modalType === 'addInventory' && 'Add Inventory to Master'}
               </h3>
@@ -4546,6 +5051,129 @@ const addTeam = async () => {
                       className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                     >
                       Submit Settlement
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Expense Form */}
+              {modalType === 'expense' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Amount (₹) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={expenseForm.amount}
+                      onChange={(e) => setExpenseForm({...expenseForm, amount: parseFloat(e.target.value) || 0})}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Description *</label>
+                    <textarea
+                      value={expenseForm.description}
+                      onChange={(e) => setExpenseForm({...expenseForm, description: e.target.value})}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      rows="3"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Category *</label>
+                    <select
+                      value={expenseForm.category}
+                      onChange={(e) => setExpenseForm({...expenseForm, category: e.target.value})}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      required
+                    >
+                      <option value="Travel">Travel</option>
+                      <option value="Food">Food</option>
+                      <option value="Accommodation">Accommodation</option>
+                      <option value="Materials">Materials</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Date *</label>
+                    <input
+                      type="date"
+                      value={expenseForm.date}
+                      onChange={(e) => setExpenseForm({...expenseForm, date: e.target.value})}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      required
+                    />
+                  </div>
+                  
+                  <div className="flex justify-end space-x-3 pt-4">
+                    <button
+                      onClick={() => setShowModal(false)}
+                      className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={submitExpense}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      Submit Expense
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Bank Submission Form */}
+              {modalType === 'bankSubmission' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Amount (₹) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={bankSubmissionForm.amount}
+                      onChange={(e) => setBankSubmissionForm({...bankSubmissionForm, amount: parseFloat(e.target.value) || 0})}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Date *</label>
+                    <input
+                      type="date"
+                      value={bankSubmissionForm.date}
+                      onChange={(e) => setBankSubmissionForm({...bankSubmissionForm, date: e.target.value})}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                    <textarea
+                      value={bankSubmissionForm.notes}
+                      onChange={(e) => setBankSubmissionForm({...bankSubmissionForm, notes: e.target.value})}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      rows="3"
+                    />
+                  </div>
+                  
+                  <div className="flex justify-end space-x-3 pt-4">
+                    <button
+                      onClick={() => setShowModal(false)}
+                      className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={submitBankSubmission}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      Submit to Bank
                     </button>
                   </div>
                 </div>
