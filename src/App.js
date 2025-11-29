@@ -351,11 +351,27 @@ const GitaDistributionPortal = () => {
     return () => unsubscribeMasterHistory();
   }, [isLoggedIn, currentUser, teams]);
 
+  // Helper function to normalize activity values (handle legacy data)
+  const normalizeActivity = (activity) => {
+    if (!activity) return 'To Be Visited';
+    // Map legacy values to new values
+    if (activity === 'Pending') return 'Announcement Pending';
+    if (activity === 'Completed') return 'Announced';
+    return activity;
+  };
+
+  // Helper function to get activity value from school (handles both activity and announcementStatus fields)
+  const getSchoolActivity = (school) => {
+    const activity = school.activity || school.announcementStatus;
+    return normalizeActivity(activity);
+  };
+
   // UI State
   const [activeView, setActiveView] = useState('dashboard');
   const [selectedTeam, setSelectedTeam] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState({ start: '', end: '' });
+  const [selectedActivityTab, setSelectedActivityTab] = useState('To Be Visited');
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState('');
   const [editingItem, setEditingItem] = useState(null);
@@ -376,7 +392,7 @@ const GitaDistributionPortal = () => {
 
   // Form states
   const [schoolForm, setSchoolForm] = useState({
-    areaName: '', schoolName: '', announcementStatus: 'Pending',
+    areaName: '', schoolName: '', activity: 'To Be Visited',
     teluguSetsDistributed: 0, englishSetsDistributed: 0, 
     teluguSetsTakenBack: 0, englishSetsTakenBack: 0,
     teluguSetsIssued: 0, englishSetsIssued: 0, // Changed from "on hold" to "issued"
@@ -688,10 +704,13 @@ const GitaDistributionPortal = () => {
     const newSchool = {
       teamId: teamId,
       ...schoolForm,
+      activity: schoolForm.activity || 'To Be Visited', // Ensure activity is set
       moneySettled: false,
       createdAt: timestamp,
       lastUpdated: timestamp
     };
+    // Remove legacy announcementStatus if present
+    delete newSchool.announcementStatus;
     
     console.log('Creating school document:', newSchool);
     
@@ -849,10 +868,15 @@ const GitaDistributionPortal = () => {
     
     // Update school document
     console.log('Updating school document...');
-    await updateDoc(schoolRef, {
+    const updateData = {
       ...schoolForm,
+      activity: schoolForm.activity || getSchoolActivity(originalSchool), // Ensure activity is set, normalize legacy
       lastUpdated: new Date().toISOString()
-    });
+    };
+    // Remove legacy announcementStatus when updating
+    delete updateData.announcementStatus;
+    
+    await updateDoc(schoolRef, updateData);
     console.log('School updated successfully');
     
     // Update team inventory
@@ -862,10 +886,20 @@ const GitaDistributionPortal = () => {
     });
     console.log('Inventory updated successfully');
     
+    // Show success notification if activity changed
+    const newActivity = updateData.activity;
+    const oldActivity = getSchoolActivity(originalSchool);
+    const activityChanged = newActivity !== oldActivity;
+    
     resetSchoolForm();
     setEditingItem(null);
     setShowModal(false);
-    alert('School updated successfully and inventory adjusted!');
+    
+    if (activityChanged) {
+      alert(`School updated successfully! Activity changed from "${oldActivity}" to "${newActivity}".`);
+    } else {
+      alert('School updated successfully and inventory adjusted!');
+    }
     
   } catch (error) {
     console.error('=== ERROR UPDATING SCHOOL ===');
@@ -1730,7 +1764,7 @@ const addTeam = async () => {
   // Reset forms
   const resetSchoolForm = () => {
     setSchoolForm({
-      areaName: '', schoolName: '', announcementStatus: 'Pending',
+      areaName: '', schoolName: '', activity: 'To Be Visited',
       teluguSetsDistributed: 0, englishSetsDistributed: 0,
       teluguSetsTakenBack: 0, englishSetsTakenBack: 0,
       teluguSetsIssued: 0, englishSetsIssued: 0,
@@ -1909,6 +1943,14 @@ const addTeam = async () => {
       filtered = filtered.filter(s => s.date <= dateFilter.end);
     }
     
+    // Filter by activity tab (if not "All Schools")
+    if (selectedActivityTab !== 'All Schools') {
+      filtered = filtered.filter(s => {
+        const schoolActivity = getSchoolActivity(s);
+        return schoolActivity === selectedActivityTab;
+      });
+    }
+    
     // Sort by last updated timestamp (newest first)
     filtered.sort((a, b) => {
       const getTimestamp = (school) => {
@@ -1939,6 +1981,23 @@ const addTeam = async () => {
     });
     
     return filtered;
+  };
+
+  // Get count of schools by activity
+  const getActivityCount = (activity) => {
+    let filtered = schools;
+    
+    if (currentUser?.role === 'team') {
+      filtered = filtered.filter(s => s.teamId === currentUser.teamId);
+    } else if (selectedTeam) {
+      filtered = filtered.filter(s => s.teamId === selectedTeam);
+    }
+    
+    if (activity === 'All Schools') {
+      return filtered.length;
+    }
+    
+    return filtered.filter(s => getSchoolActivity(s) === activity).length;
   };
 
   const sanitizeFilename = (name = 'export') => {
@@ -2321,6 +2380,34 @@ const addTeam = async () => {
               )}
             </div>
 
+            {/* Activity Tabs */}
+            <div className="bg-white rounded-lg shadow-md overflow-hidden mb-4">
+              <div className="border-b border-gray-200">
+                <nav className="flex flex-wrap -mb-px overflow-x-auto" aria-label="Activity tabs">
+                  {['To Be Visited', 'Visited', 'Announcement Pending', 'Announced', 'To Close', 'Settlement Closed', 'Declined', 'All Schools'].map((activity) => (
+                    <button
+                      key={activity}
+                      onClick={() => setSelectedActivityTab(activity)}
+                      className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                        selectedActivityTab === activity
+                          ? 'border-orange-600 text-orange-600'
+                          : 'border-transparent text-gray-600 hover:text-orange-600 hover:border-gray-300'
+                      }`}
+                    >
+                      {activity}
+                      <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
+                        selectedActivityTab === activity
+                          ? 'bg-orange-100 text-orange-700'
+                          : 'bg-gray-100 text-gray-700'
+                      }`}>
+                        {getActivityCount(activity)}
+                      </span>
+                    </button>
+                  ))}
+                </nav>
+              </div>
+            </div>
+
             {/* Schools Table */}
             <div className="bg-white rounded-lg shadow-md overflow-hidden">
               <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b bg-gray-50">
@@ -2343,7 +2430,7 @@ const addTeam = async () => {
                       {currentUser.role === 'admin' && <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Team</th>}
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Area</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">School</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Activity</th>
                       <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Telugu Sets</th>
                       <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">English Sets</th>
                       <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Money</th>
@@ -2367,9 +2454,16 @@ const addTeam = async () => {
                         <td className="px-4 py-3 text-sm text-gray-900">{school.schoolName}</td>
                         <td className="px-4 py-3">
                           <span className={`px-2 py-1 text-xs rounded-full ${
-                            school.announcementStatus === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                            (() => {
+                              const activity = getSchoolActivity(school);
+                              if (activity === 'Announced' || activity === 'Settlement Closed') return 'bg-green-100 text-green-700';
+                              if (activity === 'Declined') return 'bg-red-100 text-red-700';
+                              if (activity === 'To Close' || activity === 'Announcement Pending') return 'bg-yellow-100 text-yellow-700';
+                              if (activity === 'Visited') return 'bg-blue-100 text-blue-700';
+                              return 'bg-gray-100 text-gray-700';
+                            })()
                           }`}>
-                            {school.announcementStatus}
+                            {getSchoolActivity(school)}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-sm text-right text-gray-900">{school.teluguSetsDistributed}</td>
@@ -2388,8 +2482,10 @@ const addTeam = async () => {
                               onClick={() => {
                                 setEditingItem(school);
                                 // Map old contactPerson/contactNumber to new format for backward compatibility
+                                // Also map legacy announcementStatus to activity
                                 const formData = {
                                   ...school,
+                                  activity: getSchoolActivity(school), // Normalize legacy values
                                   contact_person_1_name: school.contact_person_1_name || school.contactPerson || '',
                                   contact_person_1_phone: school.contact_person_1_phone || school.contactNumber || '',
                                   contact_person_2_name: school.contact_person_2_name || '',
@@ -4355,14 +4451,20 @@ const addTeam = async () => {
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Announcement Status</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Activity *</label>
                       <select
-                        value={schoolForm.announcementStatus}
-                        onChange={(e) => setSchoolForm({...schoolForm, announcementStatus: e.target.value})}
+                        value={schoolForm.activity || normalizeActivity(schoolForm.announcementStatus) || 'To Be Visited'}
+                        onChange={(e) => setSchoolForm({...schoolForm, activity: e.target.value})}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                        required
                       >
-                        <option value="Pending">Pending</option>
-                        <option value="Completed">Completed</option>
+                        <option value="To Be Visited">To Be Visited</option>
+                        <option value="Visited">Visited</option>
+                        <option value="Declined">Declined</option>
+                        <option value="Announcement Pending">Announcement Pending</option>
+                        <option value="Announced">Announced</option>
+                        <option value="To Close">To Close</option>
+                        <option value="Settlement Closed">Settlement Closed</option>
                       </select>
                     </div>
                     
@@ -4760,8 +4862,8 @@ const addTeam = async () => {
                     </div>
                     
                     <div>
-                      <p className="text-sm text-gray-600">Announcement Status</p>
-                      <p className="font-medium text-gray-800">{editingItem.announcementStatus}</p>
+                      <p className="text-sm text-gray-600">Activity</p>
+                      <p className="font-medium text-gray-800">{getSchoolActivity(editingItem)}</p>
                     </div>
                     
                     <div>
