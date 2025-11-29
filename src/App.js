@@ -1904,6 +1904,38 @@ const addTeam = async () => {
                             sum + parseInt(s.englishSetsTakenBack || 0), 0);
     const totalOnHold = teamSchools.reduce((sum, s) => 
                             sum + parseInt(s.teluguSetsOnHold || 0) + parseInt(s.englishSetsOnHold || 0), 0);
+    
+    // Calculate Sets Remaining in Schools
+    const totalTeluguRemaining = teamSchools.reduce((sum, s) => {
+      const teluguIssued = parseInt(s.teluguSetsIssued || 0);
+      const teluguDistributed = parseInt(s.teluguSetsDistributed || 0);
+      const teluguTakenBack = parseInt(s.teluguSetsTakenBack || 0);
+      return sum + Math.max(0, teluguIssued - teluguDistributed - teluguTakenBack);
+    }, 0);
+    
+    const totalEnglishRemaining = teamSchools.reduce((sum, s) => {
+      const englishIssued = parseInt(s.englishSetsIssued || 0);
+      const englishDistributed = parseInt(s.englishSetsDistributed || 0);
+      const englishTakenBack = parseInt(s.englishSetsTakenBack || 0);
+      return sum + Math.max(0, englishIssued - englishDistributed - englishTakenBack);
+    }, 0);
+    
+    const totalSetsRemaining = totalTeluguRemaining + totalEnglishRemaining;
+    
+    // Calculate Money Yet to be Collected
+    const moneyYetToBeCollected = teamSchools.reduce((sum, s) => {
+      const teluguIssued = parseInt(s.teluguSetsIssued || 0);
+      const englishIssued = parseInt(s.englishSetsIssued || 0);
+      const teluguDistributed = parseInt(s.teluguSetsDistributed || 0);
+      const englishDistributed = parseInt(s.englishSetsDistributed || 0);
+      const teluguTakenBack = parseInt(s.teluguSetsTakenBack || 0);
+      const englishTakenBack = parseInt(s.englishSetsTakenBack || 0);
+      const perSetPrice = parseFloat(s.perSetPrice || 200); // Default to 200 if not set
+      
+      const setsRemaining = Math.max(0, (teluguIssued + englishIssued) - (teluguDistributed + englishDistributed) - (teluguTakenBack + englishTakenBack));
+      return sum + (perSetPrice * setsRemaining);
+    }, 0);
+    
     return {
       totalSchools: teamSchools.length,
       totalCollected,
@@ -1915,7 +1947,11 @@ const addTeam = async () => {
       totalTeluguDistributed,
       totalEnglishDistributed,
       totalFree,
-      areas: [...new Set(teamSchools.map(s => s.areaName))].length
+      areas: [...new Set(teamSchools.map(s => s.areaName))].length,
+      totalTeluguRemaining,
+      totalEnglishRemaining,
+      totalSetsRemaining,
+      moneyYetToBeCollected
     };
   };
 
@@ -2282,6 +2318,25 @@ const addTeam = async () => {
                         
                         {/* Settlement Calculation */}
                         
+                      </div>
+                      
+                      <div className="border-t pt-3 mt-3">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-sm text-gray-600">Sets Remaining in Schools</span>
+                          <div className="text-right">
+                            <div className="font-semibold text-orange-600">{stats.totalSetsRemaining} Total</div>
+                            <div className="text-xs text-gray-600">
+                              Telugu: {stats.totalTeluguRemaining} | English: {stats.totalEnglishRemaining}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="border-t pt-3 mt-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600">Money Yet to be Collected</span>
+                          <span className="font-semibold text-red-700">₹{Math.round(stats.moneyYetToBeCollected).toLocaleString()}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
