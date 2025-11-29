@@ -2384,26 +2384,30 @@ const addTeam = async () => {
             <div className="bg-white rounded-lg shadow-md overflow-hidden mb-4">
               <div className="border-b border-gray-200">
                 <nav className="flex flex-wrap -mb-px overflow-x-auto" aria-label="Activity tabs">
-                  {['To Be Visited', 'Visited', 'Announcement Pending', 'Announced', 'To Close', 'Settlement Closed', 'Declined', 'All Schools'].map((activity) => (
-                    <button
-                      key={activity}
-                      onClick={() => setSelectedActivityTab(activity)}
-                      className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                        selectedActivityTab === activity
-                          ? 'border-orange-600 text-orange-600'
-                          : 'border-transparent text-gray-600 hover:text-orange-600 hover:border-gray-300'
-                      }`}
-                    >
-                      {activity}
-                      <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
-                        selectedActivityTab === activity
-                          ? 'bg-orange-100 text-orange-700'
-                          : 'bg-gray-100 text-gray-700'
-                      }`}>
-                        {getActivityCount(activity)}
-                      </span>
-                    </button>
-                  ))}
+                  {['To Be Visited', 'Visited', 'Announcement Pending', 'Announced', 'To Close', 'Settlement Closed', 'Declined', 'All Schools'].map((activity) => {
+                    // Map activity value to display name
+                    const displayName = activity === 'Announced' ? 'Announced/Books to be given' : activity;
+                    return (
+                      <button
+                        key={activity}
+                        onClick={() => setSelectedActivityTab(activity)}
+                        className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                          selectedActivityTab === activity
+                            ? 'border-orange-600 text-orange-600'
+                            : 'border-transparent text-gray-600 hover:text-orange-600 hover:border-gray-300'
+                        }`}
+                      >
+                        {displayName}
+                        <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
+                          selectedActivityTab === activity
+                            ? 'bg-orange-100 text-orange-700'
+                            : 'bg-gray-100 text-gray-700'
+                        }`}>
+                          {getActivityCount(activity)}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </nav>
               </div>
             </div>
@@ -2431,8 +2435,8 @@ const addTeam = async () => {
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-200">Area</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-200">School</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-200">Activity</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-200">Contact Person 1</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-200">Contact Person 2</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-200">Principal Details</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-200">Coordinator Details</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-200">Announcement Date</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-200">Comments</th>
                       <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-r border-gray-200">Telugu Sets</th>
