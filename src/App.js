@@ -684,11 +684,13 @@ const GitaDistributionPortal = () => {
     console.log('New inventory will be:', newInventory);
     
     // Create school document
+    const timestamp = new Date().toISOString();
     const newSchool = {
       teamId: teamId,
       ...schoolForm,
       moneySettled: false,
-      createdAt: new Date().toISOString()
+      createdAt: timestamp,
+      lastUpdated: timestamp
     };
     
     console.log('Creating school document:', newSchool);
@@ -847,7 +849,10 @@ const GitaDistributionPortal = () => {
     
     // Update school document
     console.log('Updating school document...');
-    await updateDoc(schoolRef, schoolForm);
+    await updateDoc(schoolRef, {
+      ...schoolForm,
+      lastUpdated: new Date().toISOString()
+    });
     console.log('School updated successfully');
     
     // Update team inventory
@@ -1904,6 +1909,35 @@ const addTeam = async () => {
       filtered = filtered.filter(s => s.date <= dateFilter.end);
     }
     
+    // Sort by last updated timestamp (newest first)
+    filtered.sort((a, b) => {
+      const getTimestamp = (school) => {
+        // Try different possible timestamp field names
+        const timestamp = school.lastUpdated || school.updatedAt || school.last_updated || school.updated_at || school.createdAt || school.created_at;
+        if (!timestamp) return 0;
+        
+        // Handle Firestore Timestamp objects
+        if (timestamp && typeof timestamp.toDate === 'function') {
+          return timestamp.toDate().getTime();
+        }
+        
+        // Handle ISO string or number
+        if (typeof timestamp === 'string') {
+          return new Date(timestamp).getTime();
+        }
+        
+        if (typeof timestamp === 'number') {
+          return timestamp;
+        }
+        
+        return 0;
+      };
+      
+      const timeA = getTimestamp(a);
+      const timeB = getTimestamp(b);
+      return timeB - timeA; // Newest first
+    });
+    
     return filtered;
   };
 
@@ -2307,7 +2341,6 @@ const addTeam = async () => {
                   <thead className="bg-gray-50 border-b">
                     <tr>
                       {currentUser.role === 'admin' && <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Team</th>}
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Announcement Date</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Area</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">School</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
@@ -2316,6 +2349,9 @@ const addTeam = async () => {
                       <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Money</th>
                       <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Difference</th>
                       <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Actions</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Contact Person 1</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Contact Person 2</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Announcement Date</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Comments</th>
                     </tr>
                   </thead>
@@ -2327,7 +2363,6 @@ const addTeam = async () => {
                             {teams.find(t => t.id === school.teamId)?.name}
                           </td>
                         )}
-                        <td className="px-4 py-3 text-sm text-gray-600">{school.date}</td>
                         <td className="px-4 py-3 text-sm text-gray-900">{school.areaName}</td>
                         <td className="px-4 py-3 text-sm text-gray-900">{school.schoolName}</td>
                         <td className="px-4 py-3">
@@ -2391,6 +2426,23 @@ const addTeam = async () => {
                             </button>
                           </div>
                         </td>
+                        <td className="px-4 py-3 text-sm text-gray-700">
+                          {school.contact_person_1_name || school.contactPerson ? (
+                            <div>
+                              <div className="font-medium">{school.contact_person_1_name || school.contactPerson}</div>
+                              <div className="text-xs text-gray-500">{school.contact_person_1_phone || school.contactNumber || ''}</div>
+                            </div>
+                          ) : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-700">
+                          {school.contact_person_2_name ? (
+                            <div>
+                              <div className="font-medium">{school.contact_person_2_name}</div>
+                              <div className="text-xs text-gray-500">{school.contact_person_2_phone || ''}</div>
+                            </div>
+                          ) : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600">{school.date}</td>
                         <td className="px-4 py-3 text-sm text-gray-700">
                           {school.notes?.trim() ? school.notes : '-'}
                         </td>
@@ -2976,6 +3028,7 @@ const addTeam = async () => {
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Method</th>
                       <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Status</th>
                       <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Action</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Comments</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -3009,6 +3062,9 @@ const addTeam = async () => {
                               </button>
                             </div>
                           )}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-700">
+                          {settlement.notes?.trim() ? settlement.notes : '-'}
                         </td>
                       </tr>
                     ))}
