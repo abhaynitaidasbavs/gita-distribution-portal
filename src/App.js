@@ -2429,34 +2429,34 @@ const addTeam = async () => {
               </div>
               <div className="overflow-x-auto">
                 <table id="schools-table" className="w-full min-w-[700px]">
-                  <thead className="bg-gray-50 border-b">
+                  <thead className="bg-gray-50 border-b border-black">
                     <tr>
-                      {currentUser.role === 'admin' && <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-200">Team</th>}
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-200">Area</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-200">School</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-200">Activity</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-200">Principal Details</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-200">Coordinator Details</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-200">Announcement Date</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-200">Comments</th>
-                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-r border-gray-200">Telugu Sets</th>
-                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-r border-gray-200">English Sets</th>
-                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-r border-gray-200">Money</th>
-                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-r border-gray-200">Difference</th>
+                      {currentUser.role === 'admin' && <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-black">Team</th>}
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-black">Area</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-black">School</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-black">Activity</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-black">Principal Details</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-black">Coordinator Details</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-black">Announcement Date</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-black">Comments</th>
+                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-r border-black">Telugu Sets</th>
+                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-r border-black">English Sets</th>
+                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-r border-black">Money</th>
+                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-r border-black">Difference</th>
                       <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y">
+                  <tbody className="divide-y divide-black">
                     {getFilteredSchools().map(school => (
                       <tr key={school.id} className="hover:bg-gray-50">
                         {currentUser.role === 'admin' && (
-                          <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200">
+                          <td className="px-4 py-3 text-sm text-gray-900 border-r border-black">
                             {teams.find(t => t.id === school.teamId)?.name}
                           </td>
                         )}
-                        <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200">{school.areaName}</td>
-                        <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200">{school.schoolName}</td>
-                        <td className="px-4 py-3 border-r border-gray-200">
+                        <td className="px-4 py-3 text-sm text-gray-900 border-r border-black">{school.areaName}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900 border-r border-black">{school.schoolName}</td>
+                        <td className="px-4 py-3 border-r border-black">
                           <span className={`px-2 py-1 text-xs rounded-full ${
                             (() => {
                               const activity = getSchoolActivity(school);
@@ -2470,7 +2470,7 @@ const addTeam = async () => {
                             {getSchoolActivity(school)}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-700 border-r border-gray-200">
+                        <td className="px-4 py-3 text-sm text-gray-700 border-r border-black">
                           {school.contact_person_1_name || school.contactPerson ? (
                             <div>
                               <div className="font-medium">{school.contact_person_1_name || school.contactPerson}</div>
@@ -2478,7 +2478,7 @@ const addTeam = async () => {
                             </div>
                           ) : '-'}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-700 border-r border-gray-200">
+                        <td className="px-4 py-3 text-sm text-gray-700 border-r border-black">
                           {school.contact_person_2_name ? (
                             <div>
                               <div className="font-medium">{school.contact_person_2_name}</div>
@@ -2486,16 +2486,16 @@ const addTeam = async () => {
                             </div>
                           ) : '-'}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-600 border-r border-gray-200">{school.date}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700 border-r border-gray-200">
+                        <td className="px-4 py-3 text-sm text-gray-600 border-r border-black">{school.date}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700 border-r border-black">
                           {school.notes?.trim() ? school.notes : '-'}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-900 border-r border-gray-200">{school.teluguSetsDistributed}</td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-900 border-r border-gray-200">{school.englishSetsDistributed}</td>
-                        <td className="px-4 py-3 text-sm text-right text-green-700 font-medium border-r border-gray-200">
+                        <td className="px-4 py-3 text-sm text-right text-gray-900 border-r border-black">{school.teluguSetsDistributed}</td>
+                        <td className="px-4 py-3 text-sm text-right text-gray-900 border-r border-black">{school.englishSetsDistributed}</td>
+                        <td className="px-4 py-3 text-sm text-right text-green-700 font-medium border-r border-black">
                           ₹{school.moneyCollected.toLocaleString()}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right border-r border-gray-200">
+                        <td className="px-4 py-3 text-sm text-right border-r border-black">
                           <span className={`font-medium ${calculateMoneyDifference(school) >= 0 ? 'text-red-600' : 'text-green-600'}`}>
                             ₹{calculateMoneyDifference(school).toLocaleString()}
                           </span>
