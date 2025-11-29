@@ -2427,32 +2427,32 @@ const addTeam = async () => {
                 <table id="schools-table" className="w-full min-w-[700px]">
                   <thead className="bg-gray-50 border-b">
                     <tr>
-                      {currentUser.role === 'admin' && <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Team</th>}
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Area</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">School</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Activity</th>
-                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Telugu Sets</th>
-                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">English Sets</th>
-                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Money</th>
-                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Difference</th>
+                      {currentUser.role === 'admin' && <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-200">Team</th>}
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-200">Area</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-200">School</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-200">Activity</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-200">Contact Person 1</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-200">Contact Person 2</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-200">Announcement Date</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-200">Comments</th>
+                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-r border-gray-200">Telugu Sets</th>
+                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-r border-gray-200">English Sets</th>
+                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-r border-gray-200">Money</th>
+                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-r border-gray-200">Difference</th>
                       <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Actions</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Contact Person 1</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Contact Person 2</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Announcement Date</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Comments</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
                     {getFilteredSchools().map(school => (
                       <tr key={school.id} className="hover:bg-gray-50">
                         {currentUser.role === 'admin' && (
-                          <td className="px-4 py-3 text-sm text-gray-900">
+                          <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200">
                             {teams.find(t => t.id === school.teamId)?.name}
                           </td>
                         )}
-                        <td className="px-4 py-3 text-sm text-gray-900">{school.areaName}</td>
-                        <td className="px-4 py-3 text-sm text-gray-900">{school.schoolName}</td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200">{school.areaName}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200">{school.schoolName}</td>
+                        <td className="px-4 py-3 border-r border-gray-200">
                           <span className={`px-2 py-1 text-xs rounded-full ${
                             (() => {
                               const activity = getSchoolActivity(school);
@@ -2466,12 +2466,32 @@ const addTeam = async () => {
                             {getSchoolActivity(school)}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-900">{school.teluguSetsDistributed}</td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-900">{school.englishSetsDistributed}</td>
-                        <td className="px-4 py-3 text-sm text-right text-green-700 font-medium">
+                        <td className="px-4 py-3 text-sm text-gray-700 border-r border-gray-200">
+                          {school.contact_person_1_name || school.contactPerson ? (
+                            <div>
+                              <div className="font-medium">{school.contact_person_1_name || school.contactPerson}</div>
+                              <div className="text-xs text-gray-500">{school.contact_person_1_phone || school.contactNumber || ''}</div>
+                            </div>
+                          ) : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-700 border-r border-gray-200">
+                          {school.contact_person_2_name ? (
+                            <div>
+                              <div className="font-medium">{school.contact_person_2_name}</div>
+                              <div className="text-xs text-gray-500">{school.contact_person_2_phone || ''}</div>
+                            </div>
+                          ) : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600 border-r border-gray-200">{school.date}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700 border-r border-gray-200">
+                          {school.notes?.trim() ? school.notes : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-right text-gray-900 border-r border-gray-200">{school.teluguSetsDistributed}</td>
+                        <td className="px-4 py-3 text-sm text-right text-gray-900 border-r border-gray-200">{school.englishSetsDistributed}</td>
+                        <td className="px-4 py-3 text-sm text-right text-green-700 font-medium border-r border-gray-200">
                           ₹{school.moneyCollected.toLocaleString()}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right">
+                        <td className="px-4 py-3 text-sm text-right border-r border-gray-200">
                           <span className={`font-medium ${calculateMoneyDifference(school) >= 0 ? 'text-red-600' : 'text-green-600'}`}>
                             ₹{calculateMoneyDifference(school).toLocaleString()}
                           </span>
@@ -2521,26 +2541,6 @@ const addTeam = async () => {
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-700">
-                          {school.contact_person_1_name || school.contactPerson ? (
-                            <div>
-                              <div className="font-medium">{school.contact_person_1_name || school.contactPerson}</div>
-                              <div className="text-xs text-gray-500">{school.contact_person_1_phone || school.contactNumber || ''}</div>
-                            </div>
-                          ) : '-'}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-700">
-                          {school.contact_person_2_name ? (
-                            <div>
-                              <div className="font-medium">{school.contact_person_2_name}</div>
-                              <div className="text-xs text-gray-500">{school.contact_person_2_phone || ''}</div>
-                            </div>
-                          ) : '-'}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{school.date}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700">
-                          {school.notes?.trim() ? school.notes : '-'}
                         </td>
                       </tr>
                     ))}
