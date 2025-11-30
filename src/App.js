@@ -5303,6 +5303,7 @@ const addTeam = async () => {
                       <option value="Cash">Cash</option>
                       <option value="UPI">UPI</option>
                       <option value="Bank Transfer">Bank Transfer</option>
+                      <option value="RazorPay">RazorPay</option>
                     </select>
                   </div>
                   
