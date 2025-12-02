@@ -1891,9 +1891,11 @@ const addTeam = async () => {
 
   // Calculations
   const getTeamStats = (teamId) => {
+    const team = teams.find(t => t.id === teamId);
     const teamSchools = schools.filter(s => s.teamId === teamId);
     const totalCollected = teamSchools.reduce((sum, s) => sum + parseFloat(s.moneyCollected || 0), 0);
     const totalSettled = teamSchools.filter(s => s.moneySettled).reduce((sum, s) => sum + parseFloat(s.moneyCollected || 0), 0);
+    const totalMoneySettled = parseInt(team?.totalMoneySettled || 0);
     const totalTeluguDistributed = teamSchools.reduce((sum, s) => sum + parseInt(s.teluguSetsDistributed || 0), 0);
     const totalEnglishDistributed = teamSchools.reduce((sum, s) => sum + parseInt(s.englishSetsDistributed || 0), 0);
     const totalDistributed = totalTeluguDistributed + totalEnglishDistributed;
@@ -1940,6 +1942,7 @@ const addTeam = async () => {
       totalSchools: teamSchools.length,
       totalCollected,
       totalSettled,
+      totalMoneySettled,
       totalDistributed,
       totalTeluguTakenBack,
       totalEnglishTakenBack,
@@ -2314,6 +2317,11 @@ const addTeam = async () => {
                         <div className="flex justify-between items-center mb-2">
                           <span className="text-sm text-gray-600">Total Collected</span>
                           <span className="font-semibold text-green-700">₹{stats.totalCollected.toLocaleString()}</span>
+                        </div>
+                        
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600">Total Money Settled</span>
+                          <span className="font-semibold text-green-700">₹{stats.totalMoneySettled.toLocaleString()}</span>
                         </div>
                         
                         {/* Settlement Calculation */}
