@@ -12,7 +12,9 @@ import {
   getDocs, 
   query, 
   where,
-  onSnapshot 
+  onSnapshot,
+  Timestamp,
+  orderBy
 } from 'firebase/firestore';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { 
@@ -22,7 +24,7 @@ import {
   createUserWithEmailAndPassword 
 } from 'firebase/auth';
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Download, Users, BookOpen, DollarSign, Package, Bell, Edit2, Trash2, Eye, Filter, X, Check, AlertCircle, LogOut, Save } from 'lucide-react';
+import { Search, Plus, Download, Users, BookOpen, DollarSign, Package, Bell, Edit2, Trash2, Eye, Filter, X, Check, AlertCircle, LogOut, Save, ChevronDown, ChevronUp, Trophy } from 'lucide-react';
 
 const ISSUE_ITEM_FIELDS = [
   { key: 'gitaTelugu', label: 'Gita Telugu' },
@@ -275,6 +277,24 @@ const GitaDistributionPortal = () => {
     return () => unsubscribeAdminAccount();
   }, [isLoggedIn, currentUser]);
 
+  // Fetch score sheets in real-time
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    
+    const unsubscribeScoreSheets = onSnapshot(
+      query(collection(db, 'scoreSheets'), orderBy('generatedDate', 'desc')),
+      (snapshot) => {
+        const scoreSheetsData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setScoreSheets(scoreSheetsData);
+      }
+    );
+    
+    return () => unsubscribeScoreSheets();
+  }, [isLoggedIn]);
+
   // Fetch master inventory in real-time (admin only)
   useEffect(() => {
     if (!isLoggedIn || !currentUser || currentUser.role !== 'admin') return;
@@ -389,6 +409,11 @@ const GitaDistributionPortal = () => {
     amount: 0, date: new Date().toISOString().split('T')[0], notes: ''
   });
   const [adminAccount, setAdminAccount] = useState({ totalReceived: 0, totalExpenses: 0, balance: 0 });
+  const [scoreSheets, setScoreSheets] = useState([]);
+  const [scoreGenerationDate, setScoreGenerationDate] = useState(new Date().toISOString().split('T')[0]);
+  const [isGeneratingScores, setIsGeneratingScores] = useState(false);
+  const [expandedScoreSheets, setExpandedScoreSheets] = useState(new Set());
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
 
   // Form states
   const [schoolForm, setSchoolForm] = useState({
@@ -1761,6 +1786,262 @@ const addTeam = async () => {
       .filter(e => e.teamId === 'admin')
       .reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
   };
+
+  // Helper functions for score calculations
+  const getMoneySettledTillDate = (teamId, date) => {
+    const teamSettlements = moneySettlements.filter(s => 
+      s.teamId === teamId && s.status === 'approved'
+    );
+    
+    if (!date) return teamSettlements.reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0);
+    
+    const dateObj = new Date(date);
+    dateObj.setHours(23, 59, 59, 999); // End of day
+    
+    return teamSettlements
+      .filter(s => {
+        // Use approvedAt if available, otherwise use date field
+        const approvalDate = s.approvedAt ? new Date(s.approvedAt) : new Date(s.date);
+        return approvalDate <= dateObj;
+      })
+      .reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0);
+  };
+
+  const getExpensesTillDate = (teamId, date) => {
+    const teamExpenses = expenses.filter(e => e.teamId === teamId);
+    
+    if (!date) return teamExpenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
+    
+    const dateObj = new Date(date);
+    dateObj.setHours(23, 59, 59, 999); // End of day
+    
+    return teamExpenses
+      .filter(e => {
+        const expenseDate = new Date(e.date);
+        return expenseDate <= dateObj;
+      })
+      .reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
+  };
+
+  // Generate score sheet
+  const generateScoreSheet = async () => {
+    if (currentUser.role !== 'admin') {
+      alert('You must be an admin to perform this action');
+      return;
+    }
+
+    if (!scoreGenerationDate) {
+      alert('Please select a date for score generation');
+      return;
+    }
+
+    // Check if date is in the future
+    const selectedDate = new Date(scoreGenerationDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    selectedDate.setHours(0, 0, 0, 0);
+    
+    if (selectedDate > today) {
+      alert('Cannot generate scores for future dates');
+      return;
+    }
+
+    // Check if score sheet already exists for this date
+    const dateStr = scoreGenerationDate;
+    const existingSheet = scoreSheets.find(sheet => {
+      const sheetDate = sheet.generatedDate?.toDate ? sheet.generatedDate.toDate() : new Date(sheet.generatedDate);
+      return sheetDate.toISOString().split('T')[0] === dateStr;
+    });
+
+    if (existingSheet) {
+      alert(`Score sheet already exists for ${dateStr}. Please delete the existing one or select a different date.`);
+      return;
+    }
+
+    setIsGeneratingScores(true);
+
+    try {
+      // Find previous score sheet (most recent one before this date)
+      const previousSheet = scoreSheets
+        .filter(sheet => {
+          const sheetDate = sheet.generatedDate?.toDate ? sheet.generatedDate.toDate() : new Date(sheet.generatedDate);
+          return sheetDate < selectedDate;
+        })
+        .sort((a, b) => {
+          const dateA = a.generatedDate?.toDate ? a.generatedDate.toDate() : new Date(a.generatedDate);
+          const dateB = b.generatedDate?.toDate ? b.generatedDate.toDate() : new Date(b.generatedDate);
+          return dateB - dateA;
+        })[0];
+
+      const previousDate = previousSheet ? (previousSheet.generatedDate?.toDate ? previousSheet.generatedDate.toDate() : new Date(previousSheet.generatedDate)) : null;
+
+      // Calculate scores for each team
+      const teamScores = teams
+        .filter(team => team.id !== 'admin') // Exclude admin team
+        .map(team => {
+          // Get current totals
+          const moneySettledCurrent = getMoneySettledTillDate(team.id, scoreGenerationDate);
+          const expensesCurrent = getExpensesTillDate(team.id, scoreGenerationDate);
+
+          // Get previous totals
+          let moneySettledPrevious = 0;
+          let expensesPrevious = 0;
+          
+          if (previousDate) {
+            const prevDateStr = previousDate.toISOString().split('T')[0];
+            moneySettledPrevious = getMoneySettledTillDate(team.id, prevDateStr);
+            expensesPrevious = getExpensesTillDate(team.id, prevDateStr);
+          }
+
+          // Calculate score: [(current_money + current_expenses) - (previous_money + previous_expenses)] / 200
+          const score = ((moneySettledCurrent + expensesCurrent) - (moneySettledPrevious + expensesPrevious)) / 200;
+
+          // Calculate aggregate score for this team: (total_money + total_expenses) / 200
+          const aggregateScore = (moneySettledCurrent + expensesCurrent) / 200;
+
+          return {
+            teamId: team.id,
+            teamName: team.name,
+            score: Math.round(score * 100) / 100, // Round to 2 decimal places
+            aggregateScore: Math.round(aggregateScore * 100) / 100,
+            previousScoreSheetDate: previousDate ? Timestamp.fromDate(previousDate) : null
+          };
+        });
+
+      // Calculate total aggregate score
+      const totalAggregateScore = teamScores.reduce((sum, ts) => sum + ts.aggregateScore, 0);
+
+      // Create score sheet document
+      const scoreSheetData = {
+        generatedDate: Timestamp.fromDate(selectedDate),
+        createdAt: Timestamp.now(),
+        scores: teamScores,
+        totalAggregateScore: Math.round(totalAggregateScore * 100) / 100
+      };
+
+      await addDoc(collection(db, 'scoreSheets'), scoreSheetData);
+
+      alert('Score sheet generated successfully!');
+      setScoreGenerationDate(new Date().toISOString().split('T')[0]);
+    } catch (error) {
+      console.error('Error generating score sheet:', error);
+      alert('Failed to generate scores. Please try again.');
+    } finally {
+      setIsGeneratingScores(false);
+    }
+  };
+
+  // Delete score sheet
+  const deleteScoreSheet = async (scoreSheetId) => {
+    if (currentUser.role !== 'admin') {
+      alert('You must be an admin to perform this action');
+      setShowDeleteConfirm(null);
+      return;
+    }
+
+    try {
+      await deleteDoc(doc(db, 'scoreSheets', scoreSheetId));
+      setShowDeleteConfirm(null);
+      alert('Score sheet deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting score sheet:', error);
+      alert('Failed to delete score sheet. Please try again.');
+      setShowDeleteConfirm(null);
+    }
+  };
+
+  // Edit score sheet (regenerate for the same date)
+  const editScoreSheet = async (scoreSheetId) => {
+    if (currentUser.role !== 'admin') {
+      alert('You must be an admin to perform this action');
+      return;
+    }
+
+    const scoreSheet = scoreSheets.find(s => s.id === scoreSheetId);
+    if (!scoreSheet) {
+      alert('Score sheet not found');
+      return;
+    }
+
+    const sheetDate = scoreSheet.generatedDate?.toDate ? scoreSheet.generatedDate.toDate() : new Date(scoreSheet.generatedDate);
+    const dateStr = sheetDate.toISOString().split('T')[0];
+
+    setIsGeneratingScores(true);
+
+    try {
+      // Find previous score sheet (most recent one before this date)
+      const currentSheetDate = sheetDate;
+      const previousSheet = scoreSheets
+        .filter(sheet => {
+          if (sheet.id === scoreSheetId) return false; // Exclude current sheet
+          const prevSheetDate = sheet.generatedDate?.toDate ? sheet.generatedDate.toDate() : new Date(sheet.generatedDate);
+          return prevSheetDate < currentSheetDate;
+        })
+        .sort((a, b) => {
+          const dateA = a.generatedDate?.toDate ? a.generatedDate.toDate() : new Date(a.generatedDate);
+          const dateB = b.generatedDate?.toDate ? b.generatedDate.toDate() : new Date(b.generatedDate);
+          return dateB - dateA;
+        })[0];
+
+      const previousDate = previousSheet ? (previousSheet.generatedDate?.toDate ? previousSheet.generatedDate.toDate() : new Date(previousSheet.generatedDate)) : null;
+
+      // Calculate scores for each team
+      const teamScores = teams
+        .filter(team => team.id !== 'admin')
+        .map(team => {
+          const moneySettledCurrent = getMoneySettledTillDate(team.id, dateStr);
+          const expensesCurrent = getExpensesTillDate(team.id, dateStr);
+
+          let moneySettledPrevious = 0;
+          let expensesPrevious = 0;
+          
+          if (previousDate) {
+            const prevDateStr = previousDate.toISOString().split('T')[0];
+            moneySettledPrevious = getMoneySettledTillDate(team.id, prevDateStr);
+            expensesPrevious = getExpensesTillDate(team.id, prevDateStr);
+          }
+
+          const score = ((moneySettledCurrent + expensesCurrent) - (moneySettledPrevious + expensesPrevious)) / 200;
+          const aggregateScore = (moneySettledCurrent + expensesCurrent) / 200;
+
+          return {
+            teamId: team.id,
+            teamName: team.name,
+            score: Math.round(score * 100) / 100,
+            aggregateScore: Math.round(aggregateScore * 100) / 100,
+            previousScoreSheetDate: previousDate ? Timestamp.fromDate(previousDate) : null
+          };
+        });
+
+      const totalAggregateScore = teamScores.reduce((sum, ts) => sum + ts.aggregateScore, 0);
+
+      // Update score sheet document
+      const scoreSheetRef = doc(db, 'scoreSheets', scoreSheetId);
+      await updateDoc(scoreSheetRef, {
+        scores: teamScores,
+        totalAggregateScore: Math.round(totalAggregateScore * 100) / 100,
+        updatedAt: Timestamp.now()
+      });
+
+      alert('Score sheet updated successfully!');
+    } catch (error) {
+      console.error('Error updating score sheet:', error);
+      alert('Failed to update score sheet. Please try again.');
+    } finally {
+      setIsGeneratingScores(false);
+    }
+  };
+
+  // Toggle score sheet expansion
+  const toggleScoreSheet = (scoreSheetId) => {
+    const newExpanded = new Set(expandedScoreSheets);
+    if (newExpanded.has(scoreSheetId)) {
+      newExpanded.delete(scoreSheetId);
+    } else {
+      newExpanded.add(scoreSheetId);
+    }
+    setExpandedScoreSheets(newExpanded);
+  };
   // Reset forms
   const resetSchoolForm = () => {
     setSchoolForm({
@@ -2221,6 +2502,12 @@ const addTeam = async () => {
                   Expenses
                 </button>
                 <button
+                  onClick={() => setActiveView('scores')}
+                  className={`px-6 py-3 font-medium ${activeView === 'scores' ? 'text-orange-600 border-b-2 border-orange-600' : 'text-gray-600 hover:text-orange-600'}`}
+                >
+                  Scores
+                </button>
+                <button
                   onClick={() => setActiveView('masterInventory')}
                   className={`px-6 py-3 font-medium ${activeView === 'masterInventory' ? 'text-orange-600 border-b-2 border-orange-600' : 'text-gray-600 hover:text-orange-600'}`}
                 >
@@ -2247,6 +2534,12 @@ const addTeam = async () => {
                   className={`px-6 py-3 font-medium ${activeView === 'expenses' ? 'text-orange-600 border-b-2 border-orange-600' : 'text-gray-600 hover:text-orange-600'}`}
                 >
                   Expenses
+                </button>
+                <button
+                  onClick={() => setActiveView('scores')}
+                  className={`px-6 py-3 font-medium ${activeView === 'scores' ? 'text-orange-600 border-b-2 border-orange-600' : 'text-gray-600 hover:text-orange-600'}`}
+                >
+                  Scores
                 </button>
               </>
             )}
@@ -3560,6 +3853,223 @@ const addTeam = async () => {
         )}
 
         {/* Notifications View */}
+        {/* Scores View */}
+        {activeView === 'scores' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-800">Scores</h2>
+            </div>
+
+            {/* Admin Score Generator */}
+            {currentUser.role === 'admin' && (
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">Generate Score Sheet</h3>
+                <div className="flex flex-col md:flex-row gap-4 items-end">
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Generation Date *</label>
+                    <input
+                      type="date"
+                      value={scoreGenerationDate}
+                      max={new Date().toISOString().split('T')[0]}
+                      onChange={(e) => setScoreGenerationDate(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      required
+                    />
+                  </div>
+                  <button
+                    onClick={generateScoreSheet}
+                    disabled={isGeneratingScores}
+                    className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                  >
+                    {isGeneratingScores ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        <span>Generating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Trophy className="w-4 h-4" />
+                        <span>Generate Scores</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Score Sheets List */}
+            <div className="bg-white rounded-lg shadow-md overflow-hidden">
+              <div className="p-4 bg-orange-50 border-b">
+                <h3 className="text-lg font-semibold text-orange-900">Score Sheets</h3>
+                <p className="text-sm text-orange-700">All generated score sheets</p>
+              </div>
+              <div className="divide-y">
+                {scoreSheets.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">
+                    <Trophy className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>No score sheets generated yet</p>
+                    {currentUser.role === 'admin' && (
+                      <p className="text-sm mt-2">Generate a score sheet to get started</p>
+                    )}
+                  </div>
+                ) : (
+                  scoreSheets.map((scoreSheet) => {
+                    const isExpanded = expandedScoreSheets.has(scoreSheet.id);
+                    const generatedDate = scoreSheet.generatedDate?.toDate 
+                      ? scoreSheet.generatedDate.toDate() 
+                      : new Date(scoreSheet.generatedDate);
+                    const createdAt = scoreSheet.createdAt?.toDate 
+                      ? scoreSheet.createdAt.toDate() 
+                      : (scoreSheet.createdAt ? new Date(scoreSheet.createdAt) : new Date());
+
+                    return (
+                      <div key={scoreSheet.id} className="border-b last:border-b-0">
+                        {/* Collapsed View */}
+                        <div 
+                          className="p-4 hover:bg-gray-50 cursor-pointer flex items-center justify-between"
+                          onClick={() => toggleScoreSheet(scoreSheet.id)}
+                        >
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-3">
+                              <Trophy className="w-5 h-5 text-orange-600" />
+                              <div>
+                                <p className="font-semibold text-gray-900">
+                                  Score Sheet - {generatedDate.toLocaleDateString()}
+                                </p>
+                                <p className="text-sm text-gray-600">
+                                  Created: {createdAt.toLocaleString()}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-4">
+                            {currentUser.role === 'admin' && (
+                              <>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    editScoreSheet(scoreSheet.id);
+                                  }}
+                                  className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors flex items-center space-x-1"
+                                  title="Edit Score Sheet"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                  <span>Edit</span>
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowDeleteConfirm(scoreSheet.id);
+                                  }}
+                                  className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors flex items-center space-x-1"
+                                  title="Delete Score Sheet"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                  <span>Delete</span>
+                                </button>
+                              </>
+                            )}
+                            {isExpanded ? (
+                              <ChevronUp className="w-5 h-5 text-gray-500" />
+                            ) : (
+                              <ChevronDown className="w-5 h-5 text-gray-500" />
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Expanded View */}
+                        {isExpanded && (
+                          <div className="p-4 bg-gray-50 border-t">
+                            <div className="overflow-x-auto">
+                              <table className="w-full min-w-[600px]">
+                                <thead className="bg-gray-100 border-b">
+                                  <tr>
+                                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Team Name</th>
+                                    <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Score</th>
+                                    <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Aggregate Score</th>
+                                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date Generated</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y">
+                                  {scoreSheet.scores && scoreSheet.scores.length > 0 ? (
+                                    scoreSheet.scores.map((teamScore, idx) => (
+                                      <tr key={idx} className="hover:bg-white">
+                                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{teamScore.teamName}</td>
+                                        <td className="px-4 py-3 text-sm text-right font-semibold text-blue-700">
+                                          {teamScore.score.toFixed(2)}
+                                        </td>
+                                        <td className="px-4 py-3 text-sm text-right font-semibold text-green-700">
+                                          {teamScore.aggregateScore.toFixed(2)}
+                                        </td>
+                                        <td className="px-4 py-3 text-sm text-gray-600">
+                                          {generatedDate.toLocaleDateString()}
+                                        </td>
+                                      </tr>
+                                    ))
+                                  ) : (
+                                    <tr>
+                                      <td colSpan="4" className="px-4 py-3 text-sm text-gray-500 text-center">
+                                        No scores available
+                                      </td>
+                                    </tr>
+                                  )}
+                                </tbody>
+                                {scoreSheet.scores && scoreSheet.scores.length > 0 && (
+                                  <tfoot className="bg-gray-100 border-t-2">
+                                    <tr>
+                                      <td className="px-4 py-3 text-sm font-bold text-gray-900">Total Aggregate Score</td>
+                                      <td colSpan="2" className="px-4 py-3 text-sm text-right font-bold text-green-700">
+                                        {scoreSheet.totalAggregateScore ? scoreSheet.totalAggregateScore.toFixed(2) : 
+                                          (scoreSheet.scores.reduce((sum, ts) => sum + ts.aggregateScore, 0).toFixed(2))}
+                                      </td>
+                                      <td></td>
+                                    </tr>
+                                  </tfoot>
+                                )}
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Delete Confirmation Modal */}
+            {showDeleteConfirm && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                  <div className="flex items-center space-x-3 mb-4">
+                    <AlertCircle className="w-6 h-6 text-red-600" />
+                    <h3 className="text-lg font-semibold text-gray-900">Confirm Deletion</h3>
+                  </div>
+                  <p className="text-gray-700 mb-6">
+                    Are you sure you want to delete this score sheet? This action cannot be undone.
+                  </p>
+                  <div className="flex justify-end space-x-3">
+                    <button
+                      onClick={() => setShowDeleteConfirm(null)}
+                      className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        deleteScoreSheet(showDeleteConfirm);
+                      }}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {activeView === 'notifications' && currentUser.role === 'admin' && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-gray-800">Notifications</h2>
