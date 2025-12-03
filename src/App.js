@@ -1879,25 +1879,22 @@ const addTeam = async () => {
       const teamScores = teams
         .filter(team => team.id !== 'admin') // Exclude admin team
         .map(team => {
-          // Get current totals
+          // Get current total money settled
           const moneySettledCurrent = getMoneySettledTillDate(team.id, scoreGenerationDate);
-          const expensesCurrent = getExpensesTillDate(team.id, scoreGenerationDate);
 
-          // Get previous totals
+          // Get previous total money settled
           let moneySettledPrevious = 0;
-          let expensesPrevious = 0;
           
           if (previousDate) {
             const prevDateStr = previousDate.toISOString().split('T')[0];
             moneySettledPrevious = getMoneySettledTillDate(team.id, prevDateStr);
-            expensesPrevious = getExpensesTillDate(team.id, prevDateStr);
           }
 
-          // Calculate score: [(current_money + current_expenses) - (previous_money + previous_expenses)] / 200
-          const score = ((moneySettledCurrent + expensesCurrent) - (moneySettledPrevious + expensesPrevious)) / 200;
+          // Calculate score: (money_settled_till_requested_date - money_settled_till_previous_score_date) / 200
+          const score = (moneySettledCurrent - moneySettledPrevious) / 200;
 
-          // Calculate aggregate score for this team: (total_money + total_expenses) / 200
-          const aggregateScore = (moneySettledCurrent + expensesCurrent) / 200;
+          // Calculate aggregate score for this team: (total_money_settled_by_team) / 200
+          const aggregateScore = moneySettledCurrent / 200;
 
           return {
             teamId: team.id,
@@ -1989,20 +1986,22 @@ const addTeam = async () => {
       const teamScores = teams
         .filter(team => team.id !== 'admin')
         .map(team => {
+          // Get current total money settled
           const moneySettledCurrent = getMoneySettledTillDate(team.id, dateStr);
-          const expensesCurrent = getExpensesTillDate(team.id, dateStr);
 
+          // Get previous total money settled
           let moneySettledPrevious = 0;
-          let expensesPrevious = 0;
           
           if (previousDate) {
             const prevDateStr = previousDate.toISOString().split('T')[0];
             moneySettledPrevious = getMoneySettledTillDate(team.id, prevDateStr);
-            expensesPrevious = getExpensesTillDate(team.id, prevDateStr);
           }
 
-          const score = ((moneySettledCurrent + expensesCurrent) - (moneySettledPrevious + expensesPrevious)) / 200;
-          const aggregateScore = (moneySettledCurrent + expensesCurrent) / 200;
+          // Calculate score: (money_settled_till_requested_date - money_settled_till_previous_score_date) / 200
+          const score = (moneySettledCurrent - moneySettledPrevious) / 200;
+
+          // Calculate aggregate score for this team: (total_money_settled_by_team) / 200
+          const aggregateScore = moneySettledCurrent / 200;
 
           return {
             teamId: team.id,
