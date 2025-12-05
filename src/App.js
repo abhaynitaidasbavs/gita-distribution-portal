@@ -1795,15 +1795,12 @@ const addTeam = async () => {
     
     if (!date) return teamSettlements.reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0);
     
-    // Parse the date string and set to end of that day for consistent comparison
-    const dateObj = new Date(date + 'T23:59:59.999');
-    
+    // Compare date strings directly (YYYY-MM-DD format allows lexicographic comparison)
+    // This avoids timezone issues that occur with Date object comparisons
     return teamSettlements
       .filter(s => {
-        // Use the date field (when request was raised), not approvedAt
-        const settlementDate = new Date(s.date);
-        // Compare dates - settlementDate should be <= dateObj (end of the specified date)
-        return settlementDate <= dateObj;
+        // Use the date field (when request was raised) - compare as strings
+        return s.date <= date;
       })
       .reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0);
   };
@@ -1887,10 +1884,13 @@ const addTeam = async () => {
           let moneySettledPrevious = 0;
           
           if (previousDate) {
-            // Normalize previous date to date string for consistent comparison
-            const prevDateNormalized = new Date(previousDate);
-            prevDateNormalized.setHours(0, 0, 0, 0);
-            const prevDateStr = prevDateNormalized.toISOString().split('T')[0];
+            // Extract YYYY-MM-DD string directly without timezone conversion issues
+            const d = previousDate instanceof Date ? previousDate : 
+                      (previousDate.toDate ? previousDate.toDate() : new Date(previousDate));
+            const year = d.getUTCFullYear();
+            const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(d.getUTCDate()).padStart(2, '0');
+            const prevDateStr = `${year}-${month}-${day}`;
             moneySettledPrevious = getMoneySettledTillDate(team.id, prevDateStr);
           }
 
@@ -1997,10 +1997,13 @@ const addTeam = async () => {
           let moneySettledPrevious = 0;
           
           if (previousDate) {
-            // Normalize previous date to date string for consistent comparison
-            const prevDateNormalized = new Date(previousDate);
-            prevDateNormalized.setHours(0, 0, 0, 0);
-            const prevDateStr = prevDateNormalized.toISOString().split('T')[0];
+            // Extract YYYY-MM-DD string directly without timezone conversion issues
+            const d = previousDate instanceof Date ? previousDate : 
+                      (previousDate.toDate ? previousDate.toDate() : new Date(previousDate));
+            const year = d.getUTCFullYear();
+            const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(d.getUTCDate()).padStart(2, '0');
+            const prevDateStr = `${year}-${month}-${day}`;
             moneySettledPrevious = getMoneySettledTillDate(team.id, prevDateStr);
           }
 
