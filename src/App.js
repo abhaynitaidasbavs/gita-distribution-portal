@@ -1249,6 +1249,108 @@ const addTeam = async () => {
     }
   };
 
+  // Delete inventory issuance
+  const deleteInventoryIssuance = async (teamId, issue) => {
+    if (currentUser.role !== 'admin') {
+      alert('You must be an admin to perform this action');
+      return;
+    }
+
+    if (!window.confirm('Are you sure you want to delete this inventory issuance? This will restore the items to master inventory and deduct from the team inventory.')) {
+      return;
+    }
+
+    try {
+      const teamRef = doc(db, 'teams', teamId);
+      const teamSnap = await getDoc(teamRef);
+      
+      if (!teamSnap.exists()) {
+        alert('Team not found');
+        return;
+      }
+
+      const teamData = teamSnap.data();
+      const currentInventory = teamData.inventory || {};
+      const issueHistory = teamData.issueHistory || [];
+
+      // Parse issue values (handle both string and number types for backward compatibility)
+      const parsedGitaTelugu = parseInt(issue.gitaTelugu) || 0;
+      const parsedGitaEnglish = parseInt(issue.gitaEnglish) || 0;
+      const parsedBookletTelugu = parseInt(issue.bookletTelugu) || 0;
+      const parsedBookletEnglish = parseInt(issue.bookletEnglish) || 0;
+      const parsedCalendar = parseInt(issue.calendar) || 0;
+      const parsedChikki = parseInt(issue.chikki) || 0;
+      const parsedPamphlets = parseInt(issue.pamphlets) || 0;
+
+      // Find and remove the issue from history
+      // Use timestamp if available, otherwise match by all fields for backward compatibility
+      const updatedHistory = issueHistory.filter(historyItem => {
+        // If both have timestamps, compare by timestamp
+        if (issue.timestamp && historyItem.timestamp) {
+          return historyItem.timestamp !== issue.timestamp;
+        }
+        // For old data without timestamps, compare by all fields
+        return !(
+          historyItem.issuedDate === issue.issuedDate &&
+          (parseInt(historyItem.gitaTelugu) || 0) === parsedGitaTelugu &&
+          (parseInt(historyItem.gitaEnglish) || 0) === parsedGitaEnglish &&
+          (parseInt(historyItem.bookletTelugu) || 0) === parsedBookletTelugu &&
+          (parseInt(historyItem.bookletEnglish) || 0) === parsedBookletEnglish &&
+          (parseInt(historyItem.calendar) || 0) === parsedCalendar &&
+          (parseInt(historyItem.chikki) || 0) === parsedChikki &&
+          (parseInt(historyItem.pamphlets) || 0) === parsedPamphlets &&
+          (historyItem.contactPerson || '') === (issue.contactPerson || '') &&
+          (historyItem.contactPhone || '') === (issue.contactPhone || '')
+        );
+      });
+
+      // Check if we actually found and removed the issue
+      if (updatedHistory.length === issueHistory.length) {
+        alert('Could not find the issue to delete. It may have already been deleted.');
+        return;
+      }
+
+      // Deduct from team inventory (ensure non-negative values)
+      const updatedInventory = {
+        gitaTelugu: Math.max(0, (currentInventory.gitaTelugu || 0) - parsedGitaTelugu),
+        gitaEnglish: Math.max(0, (currentInventory.gitaEnglish || 0) - parsedGitaEnglish),
+        bookletTelugu: Math.max(0, (currentInventory.bookletTelugu || 0) - parsedBookletTelugu),
+        bookletEnglish: Math.max(0, (currentInventory.bookletEnglish || 0) - parsedBookletEnglish),
+        calendar: Math.max(0, (currentInventory.calendar || 0) - parsedCalendar),
+        chikki: Math.max(0, (currentInventory.chikki || 0) - parsedChikki),
+        pamphlets: Math.max(0, (currentInventory.pamphlets || 0) - parsedPamphlets)
+      };
+
+      // Add back to master inventory
+      const masterInventoryRef = doc(db, 'masterInventory', 'main');
+      const masterSnap = await getDoc(masterInventoryRef);
+      
+      if (masterSnap.exists()) {
+        const masterData = masterSnap.data();
+        await updateDoc(masterInventoryRef, {
+          gitaTelugu: (masterData.gitaTelugu || 0) + parsedGitaTelugu,
+          gitaEnglish: (masterData.gitaEnglish || 0) + parsedGitaEnglish,
+          bookletTelugu: (masterData.bookletTelugu || 0) + parsedBookletTelugu,
+          bookletEnglish: (masterData.bookletEnglish || 0) + parsedBookletEnglish,
+          calendar: (masterData.calendar || 0) + parsedCalendar,
+          chikki: (masterData.chikki || 0) + parsedChikki,
+          pamphlets: (masterData.pamphlets || 0) + parsedPamphlets
+        });
+      }
+
+      // Update team document
+      await updateDoc(teamRef, {
+        inventory: updatedInventory,
+        issueHistory: updatedHistory
+      });
+
+      alert('Inventory issuance deleted successfully! Master inventory restored and team inventory adjusted.');
+    } catch (error) {
+      console.error('Error deleting inventory issuance:', error);
+      alert('Error deleting inventory issuance. Please try again.');
+    }
+  };
+
   // Update pricing per set
   const updatePerSetPrice = async (newPrice) => {
     try {
@@ -3419,6 +3521,7 @@ const addTeam = async () => {
                           <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Total Items</th>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Contact Person</th>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Phone Number</th>
+                          <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y">
@@ -3439,7 +3542,7 @@ const addTeam = async () => {
                           if (allIssues.length === 0) {
                             return (
                               <tr>
-                                <td colSpan="12" className="px-4 py-12 text-center text-gray-500">
+                                <td colSpan="13" className="px-4 py-12 text-center text-gray-500">
                                   <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
                                   <p>No inventory issuance records found</p>
                                 </td>
@@ -3470,6 +3573,15 @@ const addTeam = async () => {
                                 <td className="px-4 py-3 text-sm text-right font-semibold text-green-700">{totalItems}</td>
                                 <td className="px-4 py-3 text-sm text-gray-700">{issue.contactPerson || 'N/A'}</td>
                                 <td className="px-4 py-3 text-sm text-gray-700">{issue.contactPhone || 'N/A'}</td>
+                                <td className="px-4 py-3 text-center">
+                                  <button
+                                    onClick={() => deleteInventoryIssuance(issue.teamId, issue)}
+                                    className="p-1 text-red-600 hover:bg-red-50 rounded"
+                                    title="Delete Issuance"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </td>
                               </tr>
                             );
                           });
