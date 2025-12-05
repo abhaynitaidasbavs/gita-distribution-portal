@@ -1833,13 +1833,10 @@ const addTeam = async () => {
       return;
     }
 
-    // Check if date is in the future
-    const selectedDate = new Date(scoreGenerationDate);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    selectedDate.setHours(0, 0, 0, 0);
+    // Check if date is in the future (using string comparison to avoid timezone issues)
+    const todayStr = new Date().toISOString().split('T')[0];
     
-    if (selectedDate > today) {
+    if (scoreGenerationDate > todayStr) {
       alert('Cannot generate scores for future dates');
       return;
     }
@@ -1860,10 +1857,12 @@ const addTeam = async () => {
 
     try {
       // Find previous score sheet (most recent one before this date)
+      // Use string comparison to avoid timezone issues
       const previousSheet = scoreSheets
         .filter(sheet => {
           const sheetDate = sheet.generatedDate?.toDate ? sheet.generatedDate.toDate() : new Date(sheet.generatedDate);
-          return sheetDate < selectedDate;
+          const sheetDateStr = sheetDate.toISOString().split('T')[0];
+          return sheetDateStr < scoreGenerationDate;
         })
         .sort((a, b) => {
           const dateA = a.generatedDate?.toDate ? a.generatedDate.toDate() : new Date(a.generatedDate);
@@ -1913,8 +1912,9 @@ const addTeam = async () => {
       const totalAggregateScore = teamScores.reduce((sum, ts) => sum + ts.aggregateScore, 0);
 
       // Create score sheet document
+      // Store generatedDate at UTC midnight to avoid timezone issues
       const scoreSheetData = {
-        generatedDate: Timestamp.fromDate(selectedDate),
+        generatedDate: Timestamp.fromDate(new Date(scoreGenerationDate + 'T00:00:00.000Z')),
         createdAt: Timestamp.now(),
         scores: teamScores,
         totalAggregateScore: Math.round(totalAggregateScore * 100) / 100
