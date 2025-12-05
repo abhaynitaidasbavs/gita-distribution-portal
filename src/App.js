@@ -1800,10 +1800,10 @@ const addTeam = async () => {
     
     return teamSettlements
       .filter(s => {
-        // Use approvedAt if available, otherwise use date field
-        const approvalDate = s.approvedAt ? new Date(s.approvedAt) : new Date(s.date);
-        // Compare dates - approvalDate should be <= dateObj (end of the specified date)
-        return approvalDate <= dateObj;
+        // Use the date field (when request was raised), not approvedAt
+        const settlementDate = new Date(s.date);
+        // Compare dates - settlementDate should be <= dateObj (end of the specified date)
+        return settlementDate <= dateObj;
       })
       .reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0);
   };
