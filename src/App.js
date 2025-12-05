@@ -1795,13 +1795,14 @@ const addTeam = async () => {
     
     if (!date) return teamSettlements.reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0);
     
-    const dateObj = new Date(date);
-    dateObj.setHours(23, 59, 59, 999); // End of day
+    // Parse the date string and set to end of that day for consistent comparison
+    const dateObj = new Date(date + 'T23:59:59.999');
     
     return teamSettlements
       .filter(s => {
         // Use approvedAt if available, otherwise use date field
         const approvalDate = s.approvedAt ? new Date(s.approvedAt) : new Date(s.date);
+        // Compare dates - approvalDate should be <= dateObj (end of the specified date)
         return approvalDate <= dateObj;
       })
       .reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0);
@@ -1886,7 +1887,10 @@ const addTeam = async () => {
           let moneySettledPrevious = 0;
           
           if (previousDate) {
-            const prevDateStr = previousDate.toISOString().split('T')[0];
+            // Normalize previous date to date string for consistent comparison
+            const prevDateNormalized = new Date(previousDate);
+            prevDateNormalized.setHours(0, 0, 0, 0);
+            const prevDateStr = prevDateNormalized.toISOString().split('T')[0];
             moneySettledPrevious = getMoneySettledTillDate(team.id, prevDateStr);
           }
 
@@ -1993,7 +1997,10 @@ const addTeam = async () => {
           let moneySettledPrevious = 0;
           
           if (previousDate) {
-            const prevDateStr = previousDate.toISOString().split('T')[0];
+            // Normalize previous date to date string for consistent comparison
+            const prevDateNormalized = new Date(previousDate);
+            prevDateNormalized.setHours(0, 0, 0, 0);
+            const prevDateStr = prevDateNormalized.toISOString().split('T')[0];
             moneySettledPrevious = getMoneySettledTillDate(team.id, prevDateStr);
           }
 
