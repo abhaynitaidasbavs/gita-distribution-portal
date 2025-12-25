@@ -3044,8 +3044,70 @@ const addTeam = async () => {
                             {teams.find(t => t.id === school.teamId)?.name}
                           </td>
                         )}
-                        <td className="px-4 py-3 text-sm text-gray-900 border-r border-black">{school.areaName}</td>
-                        <td className="px-4 py-3 text-sm text-gray-900 border-r border-black">{school.schoolName}</td>
+                        <td 
+                          className="px-4 py-3 text-sm text-gray-900 border-r border-black cursor-pointer hover:bg-blue-50 transition-colors relative group"
+                          onClick={() => startInlineEdit(school.id, 'areaName', school.areaName)}
+                        >
+                          {editingCell?.schoolId === school.id && editingCell?.field === 'areaName' ? (
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="text"
+                                value={editingCellValue}
+                                onChange={(e) => setEditingCellValue(e.target.value)}
+                                onKeyDown={handleInlineEditKeyPress}
+                                onBlur={saveInlineEdit}
+                                autoFocus
+                                className="flex-1 px-2 py-1 border-2 border-blue-500 rounded focus:outline-none"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <button onClick={saveInlineEdit} className="p-1 text-green-600 hover:bg-green-100 rounded" title="Save">
+                                <Check className="w-3 h-3" />
+                              </button>
+                              <button onClick={cancelInlineEdit} className="p-1 text-red-600 hover:bg-red-100 rounded" title="Cancel">
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              {school.areaName}
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50">
+                                <Edit2 className="w-3 h-3 text-blue-600" />
+                              </span>
+                            </>
+                          )}
+                        </td>
+                        <td 
+                          className="px-4 py-3 text-sm text-gray-900 border-r border-black cursor-pointer hover:bg-blue-50 transition-colors relative group"
+                          onClick={() => startInlineEdit(school.id, 'schoolName', school.schoolName)}
+                        >
+                          {editingCell?.schoolId === school.id && editingCell?.field === 'schoolName' ? (
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="text"
+                                value={editingCellValue}
+                                onChange={(e) => setEditingCellValue(e.target.value)}
+                                onKeyDown={handleInlineEditKeyPress}
+                                onBlur={saveInlineEdit}
+                                autoFocus
+                                className="flex-1 px-2 py-1 border-2 border-blue-500 rounded focus:outline-none"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <button onClick={saveInlineEdit} className="p-1 text-green-600 hover:bg-green-100 rounded" title="Save">
+                                <Check className="w-3 h-3" />
+                              </button>
+                              <button onClick={cancelInlineEdit} className="p-1 text-red-600 hover:bg-red-100 rounded" title="Cancel">
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              {school.schoolName}
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50">
+                                <Edit2 className="w-3 h-3 text-blue-600" />
+                              </span>
+                            </>
+                          )}
+                        </td>
                         <td className="px-4 py-3 border-r border-black">
                           <span className={`px-2 py-1 text-xs rounded-full ${
                             (() => {
@@ -3080,14 +3142,230 @@ const addTeam = async () => {
                         <td className="px-4 py-3 text-sm text-gray-700 border-r border-black">
                           {school.notes?.trim() ? school.notes : '-'}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-900 border-r border-black">{school.teluguSetsDistributed || 0}</td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-900 border-r border-black">{school.englishSetsDistributed || 0}</td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-900 border-r border-black">{school.teluguSetsIssued || 0}</td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-900 border-r border-black">{school.englishSetsIssued || 0}</td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-900 border-r border-black">{school.teluguSetsTakenBack || 0}</td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-900 border-r border-black">{school.englishSetsTakenBack || 0}</td>
-                        <td className="px-4 py-3 text-sm text-right text-green-700 font-medium border-r border-black">
-                          ₹{school.moneyCollected.toLocaleString()}
+                        <td 
+                          className="px-4 py-3 text-sm text-right text-gray-900 border-r border-black cursor-pointer hover:bg-blue-50 transition-colors relative group"
+                          onClick={() => startInlineEdit(school.id, 'teluguSetsDistributed', school.teluguSetsDistributed || 0)}
+                        >
+                          {editingCell?.schoolId === school.id && editingCell?.field === 'teluguSetsDistributed' ? (
+                            <div className="flex items-center justify-end gap-1">
+                              <input
+                                type="number"
+                                value={editingCellValue}
+                                onChange={(e) => setEditingCellValue(e.target.value)}
+                                onKeyDown={handleInlineEditKeyPress}
+                                onBlur={saveInlineEdit}
+                                autoFocus
+                                className="w-20 px-2 py-1 border-2 border-blue-500 rounded focus:outline-none text-right"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <button onClick={saveInlineEdit} className="p-1 text-green-600 hover:bg-green-100 rounded">
+                                <Check className="w-3 h-3" />
+                              </button>
+                              <button onClick={cancelInlineEdit} className="p-1 text-red-600 hover:bg-red-100 rounded">
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              {school.teluguSetsDistributed || 0}
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50">
+                                <Edit2 className="w-3 h-3 text-blue-600" />
+                              </span>
+                            </>
+                          )}
+                        </td>
+                        <td 
+                          className="px-4 py-3 text-sm text-right text-gray-900 border-r border-black cursor-pointer hover:bg-blue-50 transition-colors relative group"
+                          onClick={() => startInlineEdit(school.id, 'englishSetsDistributed', school.englishSetsDistributed || 0)}
+                        >
+                          {editingCell?.schoolId === school.id && editingCell?.field === 'englishSetsDistributed' ? (
+                            <div className="flex items-center justify-end gap-1">
+                              <input
+                                type="number"
+                                value={editingCellValue}
+                                onChange={(e) => setEditingCellValue(e.target.value)}
+                                onKeyDown={handleInlineEditKeyPress}
+                                onBlur={saveInlineEdit}
+                                autoFocus
+                                className="w-20 px-2 py-1 border-2 border-blue-500 rounded focus:outline-none text-right"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <button onClick={saveInlineEdit} className="p-1 text-green-600 hover:bg-green-100 rounded">
+                                <Check className="w-3 h-3" />
+                              </button>
+                              <button onClick={cancelInlineEdit} className="p-1 text-red-600 hover:bg-red-100 rounded">
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              {school.englishSetsDistributed || 0}
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50">
+                                <Edit2 className="w-3 h-3 text-blue-600" />
+                              </span>
+                            </>
+                          )}
+                        </td>
+                        <td 
+                          className="px-4 py-3 text-sm text-right text-gray-900 border-r border-black cursor-pointer hover:bg-blue-50 transition-colors relative group"
+                          onClick={() => startInlineEdit(school.id, 'teluguSetsIssued', school.teluguSetsIssued || 0)}
+                        >
+                          {editingCell?.schoolId === school.id && editingCell?.field === 'teluguSetsIssued' ? (
+                            <div className="flex items-center justify-end gap-1">
+                              <input
+                                type="number"
+                                value={editingCellValue}
+                                onChange={(e) => setEditingCellValue(e.target.value)}
+                                onKeyDown={handleInlineEditKeyPress}
+                                onBlur={saveInlineEdit}
+                                autoFocus
+                                className="w-20 px-2 py-1 border-2 border-blue-500 rounded focus:outline-none text-right"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <button onClick={saveInlineEdit} className="p-1 text-green-600 hover:bg-green-100 rounded">
+                                <Check className="w-3 h-3" />
+                              </button>
+                              <button onClick={cancelInlineEdit} className="p-1 text-red-600 hover:bg-red-100 rounded">
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              {school.teluguSetsIssued || 0}
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50">
+                                <Edit2 className="w-3 h-3 text-blue-600" />
+                              </span>
+                            </>
+                          )}
+                        </td>
+                        <td 
+                          className="px-4 py-3 text-sm text-right text-gray-900 border-r border-black cursor-pointer hover:bg-blue-50 transition-colors relative group"
+                          onClick={() => startInlineEdit(school.id, 'englishSetsIssued', school.englishSetsIssued || 0)}
+                        >
+                          {editingCell?.schoolId === school.id && editingCell?.field === 'englishSetsIssued' ? (
+                            <div className="flex items-center justify-end gap-1">
+                              <input
+                                type="number"
+                                value={editingCellValue}
+                                onChange={(e) => setEditingCellValue(e.target.value)}
+                                onKeyDown={handleInlineEditKeyPress}
+                                onBlur={saveInlineEdit}
+                                autoFocus
+                                className="w-20 px-2 py-1 border-2 border-blue-500 rounded focus:outline-none text-right"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <button onClick={saveInlineEdit} className="p-1 text-green-600 hover:bg-green-100 rounded">
+                                <Check className="w-3 h-3" />
+                              </button>
+                              <button onClick={cancelInlineEdit} className="p-1 text-red-600 hover:bg-red-100 rounded">
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              {school.englishSetsIssued || 0}
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50">
+                                <Edit2 className="w-3 h-3 text-blue-600" />
+                              </span>
+                            </>
+                          )}
+                        </td>
+                        <td 
+                          className="px-4 py-3 text-sm text-right text-gray-900 border-r border-black cursor-pointer hover:bg-blue-50 transition-colors relative group"
+                          onClick={() => startInlineEdit(school.id, 'teluguSetsTakenBack', school.teluguSetsTakenBack || 0)}
+                        >
+                          {editingCell?.schoolId === school.id && editingCell?.field === 'teluguSetsTakenBack' ? (
+                            <div className="flex items-center justify-end gap-1">
+                              <input
+                                type="number"
+                                value={editingCellValue}
+                                onChange={(e) => setEditingCellValue(e.target.value)}
+                                onKeyDown={handleInlineEditKeyPress}
+                                onBlur={saveInlineEdit}
+                                autoFocus
+                                className="w-20 px-2 py-1 border-2 border-blue-500 rounded focus:outline-none text-right"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <button onClick={saveInlineEdit} className="p-1 text-green-600 hover:bg-green-100 rounded">
+                                <Check className="w-3 h-3" />
+                              </button>
+                              <button onClick={cancelInlineEdit} className="p-1 text-red-600 hover:bg-red-100 rounded">
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              {school.teluguSetsTakenBack || 0}
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50">
+                                <Edit2 className="w-3 h-3 text-blue-600" />
+                              </span>
+                            </>
+                          )}
+                        </td>
+                        <td 
+                          className="px-4 py-3 text-sm text-right text-gray-900 border-r border-black cursor-pointer hover:bg-blue-50 transition-colors relative group"
+                          onClick={() => startInlineEdit(school.id, 'englishSetsTakenBack', school.englishSetsTakenBack || 0)}
+                        >
+                          {editingCell?.schoolId === school.id && editingCell?.field === 'englishSetsTakenBack' ? (
+                            <div className="flex items-center justify-end gap-1">
+                              <input
+                                type="number"
+                                value={editingCellValue}
+                                onChange={(e) => setEditingCellValue(e.target.value)}
+                                onKeyDown={handleInlineEditKeyPress}
+                                onBlur={saveInlineEdit}
+                                autoFocus
+                                className="w-20 px-2 py-1 border-2 border-blue-500 rounded focus:outline-none text-right"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <button onClick={saveInlineEdit} className="p-1 text-green-600 hover:bg-green-100 rounded">
+                                <Check className="w-3 h-3" />
+                              </button>
+                              <button onClick={cancelInlineEdit} className="p-1 text-red-600 hover:bg-red-100 rounded">
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              {school.englishSetsTakenBack || 0}
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50">
+                                <Edit2 className="w-3 h-3 text-blue-600" />
+                              </span>
+                            </>
+                          )}
+                        </td>
+                        <td 
+                          className="px-4 py-3 text-sm text-right text-green-700 font-medium border-r border-black cursor-pointer hover:bg-blue-50 transition-colors relative group"
+                          onClick={() => startInlineEdit(school.id, 'moneyCollected', school.moneyCollected || 0)}
+                        >
+                          {editingCell?.schoolId === school.id && editingCell?.field === 'moneyCollected' ? (
+                            <div className="flex items-center justify-end gap-1">
+                              <span className="text-green-700">₹</span>
+                              <input
+                                type="number"
+                                value={editingCellValue}
+                                onChange={(e) => setEditingCellValue(e.target.value)}
+                                onKeyDown={handleInlineEditKeyPress}
+                                onBlur={saveInlineEdit}
+                                autoFocus
+                                className="w-24 px-2 py-1 border-2 border-blue-500 rounded focus:outline-none text-right"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <button onClick={saveInlineEdit} className="p-1 text-green-600 hover:bg-green-100 rounded">
+                                <Check className="w-3 h-3" />
+                              </button>
+                              <button onClick={cancelInlineEdit} className="p-1 text-red-600 hover:bg-red-100 rounded">
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              ₹{school.moneyCollected.toLocaleString()}
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50">
+                                <Edit2 className="w-3 h-3 text-blue-600" />
+                              </span>
+                            </>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-sm text-right border-r border-black">
                           <span className={`font-medium ${calculateMoneyDifference(school) >= 0 ? 'text-red-600' : 'text-green-600'}`}>
