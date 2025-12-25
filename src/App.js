@@ -397,6 +397,13 @@ const GitaDistributionPortal = () => {
   const [editingItem, setEditingItem] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [moneySettlements, setMoneySettlements] = useState([]);
+  // State for expand/collapse tables in money settlement tab
+  const [isTeamSettlementSummaryCollapsed, setIsTeamSettlementSummaryCollapsed] = useState(true);
+  const [isInventoryIssuanceHistoryCollapsed, setIsInventoryIssuanceHistoryCollapsed] = useState(true);
+  const [isPendingSettlementRequestsCollapsed, setIsPendingSettlementRequestsCollapsed] = useState(true);
+  // State for filters in Pending Settlement Requests
+  const [settlementStatusFilter, setSettlementStatusFilter] = useState('all');
+  const [settlementMethodFilter, setSettlementMethodFilter] = useState('all');
   const [settlementForm, setSettlementForm] = useState({
     amount: 0, paymentMethod: 'Cash', date: new Date().toISOString().split('T')[0], notes: ''
   });
@@ -3448,9 +3455,21 @@ const addTeam = async () => {
                 {/* Money Settlement Summary Table */}
                 <div className="bg-white rounded-lg shadow-md overflow-hidden">
                   <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-orange-50 border-b">
-                    <div>
-                      <h3 className="text-lg font-semibold text-orange-900">Team Settlement Summary</h3>
-                      <p className="text-sm text-orange-700">Overview of settlements by team</p>
+                    <div className="flex items-center gap-2 flex-1">
+                      <button
+                        onClick={() => setIsTeamSettlementSummaryCollapsed(!isTeamSettlementSummaryCollapsed)}
+                        className="flex items-center justify-center w-8 h-8 hover:bg-orange-100 rounded transition-colors"
+                      >
+                        {isTeamSettlementSummaryCollapsed ? (
+                          <ChevronDown className="w-5 h-5 text-orange-900" />
+                        ) : (
+                          <ChevronUp className="w-5 h-5 text-orange-900" />
+                        )}
+                      </button>
+                      <div>
+                        <h3 className="text-lg font-semibold text-orange-900">Team Settlement Summary</h3>
+                        <p className="text-sm text-orange-700">Overview of settlements by team</p>
+                      </div>
                     </div>
                     <button
                       onClick={() => exportTableToCSV('settlement-summary-table', 'settlement_summary')}
@@ -3460,6 +3479,7 @@ const addTeam = async () => {
                       <span>Export CSV</span>
                     </button>
                   </div>
+                  {!isTeamSettlementSummaryCollapsed && (
                   <div className="overflow-x-auto">
                     <table id="settlement-summary-table" className="w-full min-w-[700px]">
                       <thead className="bg-gray-50 border-b">
@@ -3488,14 +3508,27 @@ const addTeam = async () => {
                       </tbody>
                     </table>
                   </div>
+                  )}
                 </div>
 
                 {/* Inventory Issuance History Table */}
                 <div className="bg-white rounded-lg shadow-md overflow-hidden">
                   <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-blue-50 border-b">
-                    <div>
-                      <h3 className="text-lg font-semibold text-blue-900">Inventory Issuance History</h3>
-                      <p className="text-sm text-blue-700">Complete history of all inventory items issued to teams</p>
+                    <div className="flex items-center gap-2 flex-1">
+                      <button
+                        onClick={() => setIsInventoryIssuanceHistoryCollapsed(!isInventoryIssuanceHistoryCollapsed)}
+                        className="flex items-center justify-center w-8 h-8 hover:bg-blue-100 rounded transition-colors"
+                      >
+                        {isInventoryIssuanceHistoryCollapsed ? (
+                          <ChevronDown className="w-5 h-5 text-blue-900" />
+                        ) : (
+                          <ChevronUp className="w-5 h-5 text-blue-900" />
+                        )}
+                      </button>
+                      <div>
+                        <h3 className="text-lg font-semibold text-blue-900">Inventory Issuance History</h3>
+                        <p className="text-sm text-blue-700">Complete history of all inventory items issued to teams</p>
+                      </div>
                     </div>
                     <button
                       onClick={() => exportTableToCSV('settlement-issuance-table', 'inventory_issuance')}
@@ -3505,6 +3538,7 @@ const addTeam = async () => {
                       <span>Export CSV</span>
                     </button>
                   </div>
+                  {!isInventoryIssuanceHistoryCollapsed && (
                   <div className="overflow-x-auto">
                     <table id="settlement-issuance-table" className="w-full min-w-[700px]">
                       <thead className="bg-gray-50 border-b">
@@ -3589,12 +3623,25 @@ const addTeam = async () => {
                       </tbody>
                     </table>
                   </div>
+                  )}
                 </div>
 
                 {/* Individual Settlement Requests */}
                 <div className="bg-white rounded-lg shadow-md overflow-hidden">
                   <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b bg-gray-50">
-                    <h3 className="text-lg font-semibold text-gray-800">Pending Settlement Requests</h3>
+                    <div className="flex items-center gap-2 flex-1">
+                      <button
+                        onClick={() => setIsPendingSettlementRequestsCollapsed(!isPendingSettlementRequestsCollapsed)}
+                        className="flex items-center justify-center w-8 h-8 hover:bg-gray-100 rounded transition-colors"
+                      >
+                        {isPendingSettlementRequestsCollapsed ? (
+                          <ChevronDown className="w-5 h-5 text-gray-800" />
+                        ) : (
+                          <ChevronUp className="w-5 h-5 text-gray-800" />
+                        )}
+                      </button>
+                      <h3 className="text-lg font-semibold text-gray-800">Pending Settlement Requests</h3>
+                    </div>
                     <button
                       onClick={() => exportTableToCSV('pending-settlements-table', 'pending_settlements')}
                       className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
@@ -3603,97 +3650,219 @@ const addTeam = async () => {
                       <span>Export CSV</span>
                     </button>
                   </div>
-                  <div className="overflow-x-auto">
-                    <table id="pending-settlements-table" className="w-full min-w-[700px]">
-                      <thead className="bg-gray-50 border-b">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Team</th>
-                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Amount</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Method</th>
-                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Status</th>
-                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Action</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Comments</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {moneySettlements.map(settlement => (
-                      <tr key={settlement.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm text-gray-600">{settlement.date}</td>
-                        <td className="px-4 py-3 text-sm text-gray-900">{settlement.teamName}</td>
-                        <td className="px-4 py-3 text-sm text-right text-green-700 font-medium">₹{settlement.amount.toLocaleString()}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700">{settlement.paymentMethod}</td>
-                        <td className="px-4 py-3 text-center">
-                          <span className={`px-3 py-1 text-xs rounded-full ${
-                            settlement.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                          }`}>
-                            {settlement.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          {settlement.status === 'pending' && (
-                            <div className="flex items-center justify-center gap-2">
-                              <button
-                                onClick={() => approveMoneySettlement(settlement.id)}
-                                className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors"
-                              >
-                                Approve
-                              </button>
-                              <button
-                                onClick={() => declineMoneySettlement(settlement.id)}
-                                className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
-                              >
-                                Decline
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-700">
-                          {settlement.notes?.trim() ? settlement.notes : '-'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                
-                    {moneySettlements.length === 0 && (
-                      <div className="text-center py-12 text-gray-500">
-                        <DollarSign className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                        <p>No money settlements submitted</p>
+                  {!isPendingSettlementRequestsCollapsed && (
+                  <>
+                    {/* Filters */}
+                    <div className="flex flex-wrap items-center gap-3 p-4 bg-gray-50 border-b">
+                      <div className="flex items-center gap-2">
+                        <Filter className="w-4 h-4 text-gray-600" />
+                        <label className="text-sm font-medium text-gray-700">Status:</label>
+                        <select
+                          value={settlementStatusFilter}
+                          onChange={(e) => setSettlementStatusFilter(e.target.value)}
+                          className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="all">All</option>
+                          <option value="pending">Pending</option>
+                          <option value="approved">Approved</option>
+                          <option value="declined">Declined</option>
+                        </select>
                       </div>
-                    )}
-                  </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-gray-700">Method:</label>
+                        <select
+                          value={settlementMethodFilter}
+                          onChange={(e) => setSettlementMethodFilter(e.target.value)}
+                          className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="all">All</option>
+                          <option value="Cash">Cash</option>
+                          <option value="Bank Transfer">Bank Transfer</option>
+                          <option value="UPI">UPI</option>
+                          <option value="Cheque">Cheque</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table id="pending-settlements-table" className="w-full min-w-[700px]">
+                        <thead className="bg-gray-50 border-b">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Team</th>
+                            <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Amount</th>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Method</th>
+                            <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Status</th>
+                            <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Action</th>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Comments</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {(() => {
+                            // Filter and sort settlements
+                            let filteredSettlements = [...moneySettlements];
+                            
+                            // Filter by status
+                            if (settlementStatusFilter !== 'all') {
+                              filteredSettlements = filteredSettlements.filter(s => s.status === settlementStatusFilter);
+                            }
+                            
+                            // Filter by method
+                            if (settlementMethodFilter !== 'all') {
+                              filteredSettlements = filteredSettlements.filter(s => s.paymentMethod === settlementMethodFilter);
+                            }
+                            
+                            // Sort by date (newest first)
+                            filteredSettlements.sort((a, b) => {
+                              const dateA = new Date(a.date || a.createdAt || 0);
+                              const dateB = new Date(b.date || b.createdAt || 0);
+                              return dateB - dateA; // Newest first
+                            });
+                            
+                            return filteredSettlements.length === 0 ? (
+                              <tr>
+                                <td colSpan="7" className="px-4 py-12 text-center text-gray-500">
+                                  <DollarSign className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                                  <p>No money settlements found</p>
+                                </td>
+                              </tr>
+                            ) : (
+                              filteredSettlements.map(settlement => (
+                                <tr key={settlement.id} className="hover:bg-gray-50">
+                                  <td className="px-4 py-3 text-sm text-gray-600">{settlement.date}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-900">{settlement.teamName}</td>
+                                  <td className="px-4 py-3 text-sm text-right text-green-700 font-medium">₹{settlement.amount.toLocaleString()}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-700">{settlement.paymentMethod}</td>
+                                  <td className="px-4 py-3 text-center">
+                                    <span className={`px-3 py-1 text-xs rounded-full ${
+                                      settlement.status === 'approved' ? 'bg-green-100 text-green-700' : 
+                                      settlement.status === 'declined' ? 'bg-red-100 text-red-700' : 
+                                      'bg-yellow-100 text-yellow-700'
+                                    }`}>
+                                      {settlement.status}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3 text-center">
+                                    {settlement.status === 'pending' && (
+                                      <div className="flex items-center justify-center gap-2">
+                                        <button
+                                          onClick={() => approveMoneySettlement(settlement.id)}
+                                          className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors"
+                                        >
+                                          Approve
+                                        </button>
+                                        <button
+                                          onClick={() => declineMoneySettlement(settlement.id)}
+                                          className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+                                        >
+                                          Decline
+                                        </button>
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-3 text-sm text-gray-700">
+                                    {settlement.notes?.trim() ? settlement.notes : '-'}
+                                  </td>
+                                </tr>
+                              ))
+                            );
+                          })()}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                  )}
                 </div>
               </>
             ) : (
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">Your Settlement History</h3>
-                <div className="space-y-3">
-                  {moneySettlements.filter(s => s.teamId === currentUser.teamId).map(settlement => (
-                    <div key={settlement.id} className="border rounded-lg p-4">
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <p className="font-medium text-gray-800">₹{settlement.amount.toLocaleString()}</p>
-                          <p className="text-sm text-gray-600">{settlement.paymentMethod} • {settlement.date}</p>
+              <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                <div className="p-6 border-b bg-gray-50">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Your Settlement History</h3>
+                  {/* Filters */}
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <Filter className="w-4 h-4 text-gray-600" />
+                      <label className="text-sm font-medium text-gray-700">Status:</label>
+                      <select
+                        value={settlementStatusFilter}
+                        onChange={(e) => setSettlementStatusFilter(e.target.value)}
+                        className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="all">All</option>
+                        <option value="pending">Pending</option>
+                        <option value="approved">Approved</option>
+                        <option value="declined">Declined</option>
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm font-medium text-gray-700">Method:</label>
+                      <select
+                        value={settlementMethodFilter}
+                        onChange={(e) => setSettlementMethodFilter(e.target.value)}
+                        className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="all">All</option>
+                        <option value="Cash">Cash</option>
+                        <option value="Bank Transfer">Bank Transfer</option>
+                        <option value="UPI">UPI</option>
+                        <option value="Cheque">Cheque</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <div className="space-y-3">
+                    {(() => {
+                      // Filter and sort settlements for team user
+                      let filteredSettlements = moneySettlements.filter(s => s.teamId === currentUser.teamId);
+                      
+                      // Filter by status
+                      if (settlementStatusFilter !== 'all') {
+                        filteredSettlements = filteredSettlements.filter(s => s.status === settlementStatusFilter);
+                      }
+                      
+                      // Filter by method
+                      if (settlementMethodFilter !== 'all') {
+                        filteredSettlements = filteredSettlements.filter(s => s.paymentMethod === settlementMethodFilter);
+                      }
+                      
+                      // Sort by date (newest first)
+                      filteredSettlements.sort((a, b) => {
+                        const dateA = new Date(a.date || a.createdAt || 0);
+                        const dateB = new Date(b.date || b.createdAt || 0);
+                        return dateB - dateA; // Newest first
+                      });
+                      
+                      if (filteredSettlements.length === 0) {
+                        return (
+                          <div className="text-center py-8 text-gray-500">
+                            <DollarSign className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                            <p>No settlements found</p>
+                          </div>
+                        );
+                      }
+                      
+                      return filteredSettlements.map(settlement => (
+                        <div key={settlement.id} className="border rounded-lg p-4">
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <p className="font-medium text-gray-800">₹{settlement.amount.toLocaleString()}</p>
+                              <p className="text-sm text-gray-600">{settlement.paymentMethod} • {settlement.date}</p>
+                            </div>
+                            <span className={`px-3 py-1 text-xs rounded-full ${
+                              settlement.status === 'approved' ? 'bg-green-100 text-green-700' : 
+                              settlement.status === 'declined' ? 'bg-red-100 text-red-700' : 
+                              'bg-yellow-100 text-yellow-700'
+                            }`}>
+                              {settlement.status}
+                            </span>
+                          </div>
+                          {settlement.notes && (
+                            <p className="text-sm text-gray-600 mt-2">{settlement.notes}</p>
+                          )}
                         </div>
-                        <span className={`px-3 py-1 text-xs rounded-full ${
-                          settlement.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                        }`}>
-                          {settlement.status}
-                        </span>
-                      </div>
-                      {settlement.notes && (
-                        <p className="text-sm text-gray-600 mt-2">{settlement.notes}</p>
-                      )}
-                    </div>
-                  ))}
-                  
-                  {moneySettlements.filter(s => s.teamId === currentUser.teamId).length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
-                      <DollarSign className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                      <p>No settlements submitted yet</p>
-                    </div>
-                  )}
+                      ));
+                    })()}
+                  </div>
                 </div>
               </div>
             )}
