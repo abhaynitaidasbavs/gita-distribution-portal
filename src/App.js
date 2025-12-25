@@ -24,7 +24,7 @@ import {
   createUserWithEmailAndPassword 
 } from 'firebase/auth';
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Download, Users, BookOpen, DollarSign, Package, Bell, Edit2, Trash2, Eye, Filter, X, Check, AlertCircle, LogOut, Save, ChevronDown, ChevronUp, Trophy } from 'lucide-react';
+import { Search, Plus, Download, Users, BookOpen, DollarSign, Package, Bell, Edit2, Trash2, Eye, Filter, X, Check, AlertCircle, LogOut, Save, ChevronDown, ChevronUp, Trophy, MoreVertical, TrendingUp, TrendingDown, Clock, Calendar, Info } from 'lucide-react';
 
 const ISSUE_ITEM_FIELDS = [
   { key: 'gitaTelugu', label: 'Gita Telugu' },
@@ -404,6 +404,16 @@ const GitaDistributionPortal = () => {
   // State for filters in Pending Settlement Requests
   const [settlementStatusFilter, setSettlementStatusFilter] = useState('all');
   const [settlementMethodFilter, setSettlementMethodFilter] = useState('all');
+  // State for inline editing
+  const [editingCell, setEditingCell] = useState(null); // { schoolId, field, value }
+  const [editingCellValue, setEditingCellValue] = useState('');
+  // State for row actions menu
+  const [openActionMenu, setOpenActionMenu] = useState(null); // ID of the row with open menu
+  // State for date range filter in Inventory Issuance History
+  const [inventoryDateFilter, setInventoryDateFilter] = useState('all'); // 'all', 'recent', 'custom'
+  const [inventoryDateRange, setInventoryDateRange] = useState({ start: '', end: '' });
+  // State for Quick View modal
+  const [quickViewSettlement, setQuickViewSettlement] = useState(null);
   const [settlementForm, setSettlementForm] = useState({
     amount: 0, paymentMethod: 'Cash', date: new Date().toISOString().split('T')[0], notes: ''
   });
@@ -1553,6 +1563,108 @@ const addTeam = async () => {
     } catch (error) {
       console.error('Error updating money settled status:', error);
       alert('Error updating status. Please try again.');
+    }
+  };
+
+  // Calculate summary stats for Money Settlement tab
+  const getSettlementSummaryStats = () => {
+    const summary = getMoneySettlementSummary();
+    const totalExpected = summary.reduce((sum, s) => sum + s.expectedSettlement, 0);
+    const totalSettled = summary.reduce((sum, s) => sum + s.totalMoneySettled, 0);
+    const pendingCount = moneySettlements.filter(s => s.status === 'pending').length;
+    const pendingAmount = moneySettlements
+      .filter(s => s.status === 'pending')
+      .reduce((sum, s) => sum + (s.amount || 0), 0);
+    
+    return { totalExpected, totalSettled, pendingCount, pendingAmount };
+  };
+
+  // Calculate time ago for settlements
+  const getTimeAgo = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+    return `${Math.floor(diffDays / 30)} months ago`;
+  };
+
+  // Get color based on balance (gradient from red to green)
+  const getBalanceColor = (balance, maxBalance) => {
+    if (balance < 0) return 'text-red-700 bg-red-50';
+    if (balance === 0) return 'text-gray-700 bg-gray-50';
+    
+    const ratio = Math.min(balance / maxBalance, 1);
+    if (ratio < 0.3) return 'text-orange-700 bg-orange-50';
+    if (ratio < 0.7) return 'text-yellow-700 bg-yellow-50';
+    return 'text-green-700 bg-green-50';
+  };
+
+  // Inline edit functions
+  const startInlineEdit = (schoolId, field, currentValue) => {
+    setEditingCell({ schoolId, field });
+    setEditingCellValue(currentValue);
+  };
+
+  const cancelInlineEdit = () => {
+    setEditingCell(null);
+    setEditingCellValue('');
+  };
+
+  const saveInlineEdit = async () => {
+    if (!editingCell) return;
+    
+    const { schoolId, field } = editingCell;
+    const school = schools.find(s => s.id === schoolId);
+    const oldValue = school[field];
+    const newValue = field === 'schoolName' || field === 'areaName' || field === 'activity' 
+      ? editingCellValue 
+      : parseFloat(editingCellValue) || 0;
+
+    // Don't save if value hasn't changed
+    if (oldValue === newValue) {
+      cancelInlineEdit();
+      return;
+    }
+
+    try {
+      const schoolRef = doc(db, 'schools', schoolId);
+      
+      // Create history entry
+      const historyEntry = {
+        field: field,
+        oldValue: oldValue,
+        newValue: newValue,
+        delta: typeof newValue === 'number' && typeof oldValue === 'number' ? newValue - oldValue : null,
+        editedBy: currentUser.email,
+        editedByName: currentUser.name,
+        editedAt: new Date().toISOString(),
+        editType: 'inline_edit'
+      };
+
+      // Update school with new value and history
+      await updateDoc(schoolRef, {
+        [field]: newValue,
+        editHistory: [...(school.editHistory || []), historyEntry],
+        lastUpdated: new Date().toISOString()
+      });
+
+      cancelInlineEdit();
+    } catch (error) {
+      console.error('Error saving inline edit:', error);
+      alert('Error saving changes. Please try again.');
+    }
+  };
+
+  const handleInlineEditKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      saveInlineEdit();
+    } else if (e.key === 'Escape') {
+      cancelInlineEdit();
     }
   };
 
@@ -3452,6 +3564,55 @@ const addTeam = async () => {
 
             {currentUser.role === 'admin' ? (
               <>
+                {/* Summary Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  {(() => {
+                    const stats = getSettlementSummaryStats();
+                    return (
+                      <>
+                        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg shadow-md p-6 border border-purple-200">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-xs font-medium uppercase text-purple-700 mb-1">Total Expected Settlement</p>
+                              <p className="text-2xl font-bold text-purple-900">₹{stats.totalExpected.toLocaleString()}</p>
+                              <p className="text-xs text-purple-600 mt-1">From all teams</p>
+                            </div>
+                            <div className="bg-purple-200 p-3 rounded-full">
+                              <DollarSign className="w-6 h-6 text-purple-700" />
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg shadow-md p-6 border border-green-200">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-xs font-medium uppercase text-green-700 mb-1">Total Money Settled</p>
+                              <p className="text-2xl font-bold text-green-900">₹{stats.totalSettled.toLocaleString()}</p>
+                              <p className="text-xs text-green-600 mt-1">Approved settlements</p>
+                            </div>
+                            <div className="bg-green-200 p-3 rounded-full">
+                              <Check className="w-6 h-6 text-green-700" />
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-lg shadow-md p-6 border border-yellow-200">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-xs font-medium uppercase text-yellow-700 mb-1">Pending Approvals</p>
+                              <p className="text-2xl font-bold text-yellow-900">{stats.pendingCount}</p>
+                              <p className="text-xs text-yellow-600 mt-1">₹{stats.pendingAmount.toLocaleString()} awaiting</p>
+                            </div>
+                            <div className="bg-yellow-200 p-3 rounded-full">
+                              <Clock className="w-6 h-6 text-yellow-700" />
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+
                 {/* Money Settlement Summary Table */}
                 <div className="bg-white rounded-lg shadow-md overflow-hidden">
                   <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-orange-50 border-b">
@@ -3484,28 +3645,75 @@ const addTeam = async () => {
                     <table id="settlement-summary-table" className="w-full min-w-[700px]">
                       <thead className="bg-gray-50 border-b">
                         <tr>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Team</th>
-                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Total Inventory Issued</th>
-                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Expected Settlement (₹)</th>
-                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Total Money Settled (₹)</th>
-                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Total Expenses (₹)</th>
-                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Balance (₹)</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-700">Team</th>
+                          <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-700">Total Inventory Issued</th>
+                          <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-700">Expected Settlement (₹)</th>
+                          <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-700">Total Money Settled (₹)</th>
+                          <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-700">Total Expenses (₹)</th>
+                          <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-700">Balance (₹)</th>
+                          <th className="px-4 py-3 text-center text-xs font-medium uppercase text-gray-700">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y">
-                        {getMoneySettlementSummary().map((summary, idx) => (
-                          <tr key={idx} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{summary.teamName}</td>
+                        {getMoneySettlementSummary().map((summary, idx) => {
+                          const maxBalance = Math.max(...getMoneySettlementSummary().map(s => Math.abs(s.balance)));
+                          const balanceColorClass = getBalanceColor(summary.balance, maxBalance);
+                          const trend = summary.balance > 0 ? 'up' : summary.balance < 0 ? 'down' : 'neutral';
+                          
+                          return (
+                          <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-4 py-3">
+                              <div className="text-sm font-semibold text-gray-900">{summary.teamName}</div>
+                            </td>
                             <td className="px-4 py-3 text-sm text-right text-gray-700">{summary.totalInventoryIssued}</td>
                             <td className="px-4 py-3 text-sm text-right text-purple-700 font-semibold">₹{summary.expectedSettlement.toLocaleString()}</td>
                             <td className="px-4 py-3 text-sm text-right text-green-700 font-semibold">₹{summary.totalMoneySettled.toLocaleString()}</td>
                             <td className="px-4 py-3 text-sm text-right text-red-700 font-semibold">₹{summary.totalExpenses.toLocaleString()}</td>
-                            <td className={`px-4 py-3 text-sm text-right font-semibold ${summary.balance >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                              {summary.balance >= 0 ? '+' : ''}₹{summary.balance.toLocaleString()}
+                            <td className={`px-4 py-3 text-right`}>
+                              <div className={`inline-flex items-center gap-1 px-3 py-1 rounded-full ${balanceColorClass}`}>
+                                {trend === 'up' && <TrendingUp className="w-3 h-3" />}
+                                {trend === 'down' && <TrendingDown className="w-3 h-3" />}
+                                <span className="text-sm font-bold">
+                                  {summary.balance >= 0 ? '+' : ''}₹{summary.balance.toLocaleString()}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <button
+                                onClick={() => setQuickViewSettlement(summary)}
+                                className="p-1 hover:bg-blue-50 rounded-full transition-colors"
+                                title="Quick View Details"
+                              >
+                                <Info className="w-4 h-4 text-blue-600" />
+                              </button>
                             </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
+                      <tfoot className="bg-gray-100 border-t-2 border-gray-300">
+                        {(() => {
+                          const allSummaries = getMoneySettlementSummary();
+                          const totalInventory = allSummaries.reduce((sum, s) => sum + s.totalInventoryIssued, 0);
+                          const totalExpected = allSummaries.reduce((sum, s) => sum + s.expectedSettlement, 0);
+                          const totalSettled = allSummaries.reduce((sum, s) => sum + s.totalMoneySettled, 0);
+                          const totalExpenses = allSummaries.reduce((sum, s) => sum + s.totalExpenses, 0);
+                          const overallBalance = totalExpected - totalSettled;
+                          
+                          return (
+                            <tr className="font-bold">
+                              <td className="px-4 py-3 text-sm text-gray-900 uppercase">Total</td>
+                              <td className="px-4 py-3 text-sm text-right text-gray-900">{totalInventory.toLocaleString()}</td>
+                              <td className="px-4 py-3 text-sm text-right text-purple-900">₹{totalExpected.toLocaleString()}</td>
+                              <td className="px-4 py-3 text-sm text-right text-green-900">₹{totalSettled.toLocaleString()}</td>
+                              <td className="px-4 py-3 text-sm text-right text-red-900">₹{totalExpenses.toLocaleString()}</td>
+                              <td className={`px-4 py-3 text-sm text-right ${overallBalance >= 0 ? 'text-green-900' : 'text-red-900'}`}>
+                                {overallBalance >= 0 ? '+' : ''}₹{overallBalance.toLocaleString()}
+                              </td>
+                            </tr>
+                          );
+                        })()}
+                      </tfoot>
                     </table>
                   </div>
                   )}
@@ -3539,7 +3747,60 @@ const addTeam = async () => {
                     </button>
                   </div>
                   {!isInventoryIssuanceHistoryCollapsed && (
-                  <div className="overflow-x-auto">
+                  <>
+                    {/* Date Range Filter */}
+                    <div className="flex flex-wrap items-center gap-3 p-4 bg-blue-50 border-b">
+                      <Calendar className="w-4 h-4 text-blue-700" />
+                      <label className="text-sm font-medium text-blue-900">Filter by Date:</label>
+                      <button
+                        onClick={() => setInventoryDateFilter('all')}
+                        className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                          inventoryDateFilter === 'all' 
+                            ? 'bg-blue-600 text-white' 
+                            : 'bg-white text-blue-700 border border-blue-300 hover:bg-blue-100'
+                        }`}
+                      >
+                        All Time
+                      </button>
+                      <button
+                        onClick={() => setInventoryDateFilter('recent')}
+                        className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                          inventoryDateFilter === 'recent' 
+                            ? 'bg-blue-600 text-white' 
+                            : 'bg-white text-blue-700 border border-blue-300 hover:bg-blue-100'
+                        }`}
+                      >
+                        Recent (Last 7 Days)
+                      </button>
+                      <button
+                        onClick={() => setInventoryDateFilter('custom')}
+                        className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                          inventoryDateFilter === 'custom' 
+                            ? 'bg-blue-600 text-white' 
+                            : 'bg-white text-blue-700 border border-blue-300 hover:bg-blue-100'
+                        }`}
+                      >
+                        Custom Range
+                      </button>
+                      {inventoryDateFilter === 'custom' && (
+                        <>
+                          <input
+                            type="date"
+                            value={inventoryDateRange.start}
+                            onChange={(e) => setInventoryDateRange({...inventoryDateRange, start: e.target.value})}
+                            className="px-3 py-1.5 border border-blue-300 rounded-md text-sm"
+                          />
+                          <span className="text-blue-700">to</span>
+                          <input
+                            type="date"
+                            value={inventoryDateRange.end}
+                            onChange={(e) => setInventoryDateRange({...inventoryDateRange, end: e.target.value})}
+                            className="px-3 py-1.5 border border-blue-300 rounded-md text-sm"
+                          />
+                        </>
+                      )}
+                    </div>
+                    <div className="overflow-x-auto">
                     <table id="settlement-issuance-table" className="w-full min-w-[700px]">
                       <thead className="bg-gray-50 border-b">
                         <tr>
@@ -3623,6 +3884,7 @@ const addTeam = async () => {
                       </tbody>
                     </table>
                   </div>
+                  </>
                   )}
                 </div>
 
@@ -3687,13 +3949,13 @@ const addTeam = async () => {
                       <table id="pending-settlements-table" className="w-full min-w-[700px]">
                         <thead className="bg-gray-50 border-b">
                           <tr>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Team</th>
-                            <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Amount</th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Method</th>
-                            <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Status</th>
-                            <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Action</th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Comments</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-700">Date</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-700">Team</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-700">Amount</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-700">Method</th>
+                            <th className="px-4 py-3 text-center text-xs font-medium uppercase text-gray-700">Status</th>
+                            <th className="px-4 py-3 text-center text-xs font-medium uppercase text-gray-700">Action</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-700">Comments</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y">
@@ -3726,14 +3988,30 @@ const addTeam = async () => {
                                 </td>
                               </tr>
                             ) : (
-                              filteredSettlements.map(settlement => (
-                                <tr key={settlement.id} className="hover:bg-gray-50">
-                                  <td className="px-4 py-3 text-sm text-gray-600">{settlement.date}</td>
-                                  <td className="px-4 py-3 text-sm text-gray-900">{settlement.teamName}</td>
-                                  <td className="px-4 py-3 text-sm text-right text-green-700 font-medium">₹{settlement.amount.toLocaleString()}</td>
+                              filteredSettlements.map(settlement => {
+                                const timeAgo = getTimeAgo(settlement.date || settlement.createdAt);
+                                const daysSinceSubmission = Math.floor((new Date() - new Date(settlement.date || settlement.createdAt)) / (1000 * 60 * 60 * 24));
+                                const isOld = settlement.status === 'pending' && daysSinceSubmission > 7;
+                                
+                                return (
+                                <tr key={settlement.id} className={`hover:bg-gray-50 transition-colors ${isOld ? 'bg-red-50' : ''}`}>
+                                  <td className="px-4 py-3">
+                                    <div className="text-sm text-gray-900">{settlement.date}</div>
+                                    <div className="text-xs text-gray-500 flex items-center gap-1">
+                                      <Clock className="w-3 h-3" />
+                                      {timeAgo}
+                                      {isOld && (
+                                        <span className="ml-1 px-1.5 py-0.5 bg-red-200 text-red-800 text-xs rounded-full font-semibold">
+                                          URGENT
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{settlement.teamName}</td>
+                                  <td className="px-4 py-3 text-sm text-right text-green-700 font-semibold">₹{settlement.amount.toLocaleString()}</td>
                                   <td className="px-4 py-3 text-sm text-gray-700">{settlement.paymentMethod}</td>
                                   <td className="px-4 py-3 text-center">
-                                    <span className={`px-3 py-1 text-xs rounded-full ${
+                                    <span className={`px-3 py-1 text-xs rounded-full font-medium ${
                                       settlement.status === 'approved' ? 'bg-green-100 text-green-700' : 
                                       settlement.status === 'declined' ? 'bg-red-100 text-red-700' : 
                                       'bg-yellow-100 text-yellow-700'
@@ -3746,15 +4024,17 @@ const addTeam = async () => {
                                       <div className="flex items-center justify-center gap-2">
                                         <button
                                           onClick={() => approveMoneySettlement(settlement.id)}
-                                          className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors"
+                                          className="p-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors flex items-center gap-1"
+                                          title="Approve"
                                         >
-                                          Approve
+                                          <Check className="w-3 h-3" />
                                         </button>
                                         <button
                                           onClick={() => declineMoneySettlement(settlement.id)}
-                                          className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+                                          className="p-1.5 bg-red-600 text-white text-xs rounded hover:bg-red-700 transition-colors flex items-center gap-1"
+                                          title="Decline"
                                         >
-                                          Decline
+                                          <X className="w-3 h-3" />
                                         </button>
                                       </div>
                                     )}
@@ -3763,7 +4043,8 @@ const addTeam = async () => {
                                     {settlement.notes?.trim() ? settlement.notes : '-'}
                                   </td>
                                 </tr>
-                              ))
+                                );
+                              })
                             );
                           })()}
                         </tbody>
@@ -3774,9 +4055,53 @@ const addTeam = async () => {
                 </div>
               </>
             ) : (
-              <div className="bg-white rounded-lg shadow-md overflow-hidden">
-                <div className="p-6 border-b bg-gray-50">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Your Settlement History</h3>
+              <>
+                {/* Team Summary Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                  {(() => {
+                    const teamSettlements = moneySettlements.filter(s => s.teamId === currentUser.teamId);
+                    const totalSettled = teamSettlements
+                      .filter(s => s.status === 'approved')
+                      .reduce((sum, s) => sum + (s.amount || 0), 0);
+                    const pendingAmount = teamSettlements
+                      .filter(s => s.status === 'pending')
+                      .reduce((sum, s) => sum + (s.amount || 0), 0);
+                    
+                    return (
+                      <>
+                        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg shadow-md p-6 border border-blue-200">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-xs font-medium uppercase text-blue-700 mb-1">Your Total Settlements</p>
+                              <p className="text-2xl font-bold text-blue-900">₹{totalSettled.toLocaleString()}</p>
+                              <p className="text-xs text-blue-600 mt-1">All time approved</p>
+                            </div>
+                            <div className="bg-blue-200 p-3 rounded-full">
+                              <DollarSign className="w-6 h-6 text-blue-700" />
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-lg shadow-md p-6 border border-amber-200">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-xs font-medium uppercase text-amber-700 mb-1">Pending Settlement</p>
+                              <p className="text-2xl font-bold text-amber-900">₹{pendingAmount.toLocaleString()}</p>
+                              <p className="text-xs text-amber-600 mt-1">Awaiting approval</p>
+                            </div>
+                            <div className="bg-amber-200 p-3 rounded-full">
+                              <Clock className="w-6 h-6 text-amber-700" />
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+
+                <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                  <div className="p-6 border-b bg-gray-50">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Your Settlement History</h3>
                   {/* Filters */}
                   <div className="flex flex-wrap items-center gap-3">
                     <div className="flex items-center gap-2">
@@ -3865,6 +4190,7 @@ const addTeam = async () => {
                   </div>
                 </div>
               </div>
+              </>
             )}
           </div>
         )}
@@ -5259,6 +5585,72 @@ const addTeam = async () => {
           </div>
         )}
       </main>
+
+      {/* Quick View Modal for Settlement Details */}
+      {quickViewSettlement && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setQuickViewSettlement(null)}>
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b bg-gradient-to-r from-blue-50 to-blue-100">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-bold text-blue-900">{quickViewSettlement.teamName}</h3>
+                <button
+                  onClick={() => setQuickViewSettlement(null)}
+                  className="p-1 hover:bg-blue-200 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5 text-blue-700" />
+                </button>
+              </div>
+              <p className="text-sm text-blue-700 mt-1">Settlement Details Overview</p>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-gray-600">Total Inventory Issued</span>
+                <span className="text-lg font-bold text-gray-900">{quickViewSettlement.totalInventoryIssued}</span>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-gray-600">Expected Settlement</span>
+                <span className="text-lg font-bold text-purple-700">₹{quickViewSettlement.expectedSettlement.toLocaleString()}</span>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-gray-600">Total Money Settled</span>
+                <span className="text-lg font-bold text-green-700">₹{quickViewSettlement.totalMoneySettled.toLocaleString()}</span>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-gray-600">Total Expenses</span>
+                <span className="text-lg font-bold text-red-700">₹{quickViewSettlement.totalExpenses.toLocaleString()}</span>
+              </div>
+              
+              <div className="pt-4 border-t">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-gray-600">Balance</span>
+                  <span className={`text-2xl font-bold ${quickViewSettlement.balance >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                    {quickViewSettlement.balance >= 0 ? '+' : ''}₹{quickViewSettlement.balance.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="pt-4">
+                <div className="text-xs text-gray-500 text-center">
+                  Settlement Rate: {((quickViewSettlement.totalMoneySettled / quickViewSettlement.expectedSettlement) * 100).toFixed(1)}%
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-4 bg-gray-50 border-t flex justify-end">
+              <button
+                onClick={() => setQuickViewSettlement(null)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal */}
       {showModal && (
