@@ -3005,13 +3005,50 @@ const addTeam = async () => {
                   <h3 className="text-lg font-semibold text-gray-800">Schools</h3>
                   <p className="text-sm text-gray-500">Filtered list of all schools</p>
                 </div>
-                <button
-                  onClick={() => exportTableToCSV('schools-table', 'schools')}
-                  className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>Export CSV</span>
-                </button>
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={() => {
+                      setModalType('school');
+                      setEditingItem(null);
+                      setSchoolForm({
+                        areaName: '',
+                        schoolName: '',
+                        date: new Date().toISOString().split('T')[0],
+                        activity: 'To Be Visited',
+                        teluguSetsDistributed: 0,
+                        englishSetsDistributed: 0,
+                        moneyCollected: 0,
+                        teluguSetsTakenBack: 0,
+                        englishSetsTakenBack: 0,
+                        teluguSetsIssued: 0,
+                        englishSetsIssued: 0,
+                        freeSetsGiven: 0,
+                        pamphlets: 0,
+                        perSetPrice: perSetPrice,
+                        contact_person_1_name: '',
+                        contact_person_1_phone: '',
+                        contact_person_2_name: '',
+                        contact_person_2_phone: '',
+                        contact_person_3_name: '',
+                        contact_person_3_phone: '',
+                        email: '',
+                        notes: ''
+                      });
+                      setShowModal(true);
+                    }}
+                    className="flex items-center space-x-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add School</span>
+                  </button>
+                  <button
+                    onClick={() => exportTableToCSV('schools-table', 'schools')}
+                    className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Export CSV</span>
+                  </button>
+                </div>
               </div>
               <div className="overflow-x-auto">
                 <table id="schools-table" className="w-full min-w-[700px]">
@@ -5004,6 +5041,76 @@ const addTeam = async () => {
           <div className="space-y-6">
             {currentUser.role === 'admin' ? (
               <>
+                {/* Inventory Summary Table */}
+                <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                  <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-800">Inventory Issued Summary</h3>
+                    <p className="text-sm text-gray-500">Total inventory items issued to each team</p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Team</th>
+                          <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Gita Telugu</th>
+                          <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Booklet Telugu</th>
+                          <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Gita English</th>
+                          <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Booklet English</th>
+                          <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Calendar</th>
+                          <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Chikki</th>
+                          <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Pamphlets</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {teams.map(team => {
+                          const issueHistory = team.issueHistory || [];
+                          const totals = {
+                            gitaTelugu: 0,
+                            bookletTelugu: 0,
+                            gitaEnglish: 0,
+                            bookletEnglish: 0,
+                            calendar: 0,
+                            chikki: 0,
+                            pamphlets: 0
+                          };
+                          
+                          issueHistory.forEach(issue => {
+                            ISSUE_ITEM_FIELDS.forEach(({ key }) => {
+                              totals[key] += parseInt(issue[key]) || 0;
+                            });
+                          });
+                          
+                          return (
+                            <tr key={team.id} className="hover:bg-gray-50">
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{team.name}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-700">{totals.gitaTelugu}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-700">{totals.bookletTelugu}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-700">{totals.gitaEnglish}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-700">{totals.bookletEnglish}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-700">{totals.calendar}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-700">{totals.chikki}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-700">{totals.pamphlets}</td>
+                            </tr>
+                          );
+                        })}
+                        {/* Total Row */}
+                        <tr className="bg-orange-50 font-semibold">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Total</td>
+                          {ISSUE_ITEM_FIELDS.map(({ key }) => {
+                            const total = teams.reduce((sum, team) => {
+                              const issueHistory = team.issueHistory || [];
+                              return sum + issueHistory.reduce((issueSum, issue) => issueSum + (parseInt(issue[key]) || 0), 0);
+                            }, 0);
+                            return (
+                              <td key={key} className="px-6 py-4 whitespace-nowrap text-sm text-center text-orange-900">{total}</td>
+                            );
+                          })}
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
                 <div className="flex justify-between items-center">
                   <h2 className="text-2xl font-bold text-gray-800">Inventory Management</h2>
                   <div className="flex items-center space-x-4">
@@ -6012,59 +6119,119 @@ const addTeam = async () => {
                         <option value="Settlement Closed">Settlement Closed</option>
                       </select>
                     </div>
+                  </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Only show these fields when editing */}
+                  {editingItem && (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Telugu Sets Distributed</label>
+                          <input
+                            type="number"
+                            value={schoolForm.teluguSetsDistributed}
+                            readOnly
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">English Sets Distributed</label>
+                          <input
+                            type="number"
+                            value={schoolForm.englishSetsDistributed}
+                            readOnly
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+                          />
+                        </div>
+                      </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Telugu Sets Distributed</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Money Collected (₹)</label>
                         <input
                           type="number"
-                          value={schoolForm.teluguSetsDistributed}
-                          onChange={(e) => setSchoolForm({...schoolForm, teluguSetsDistributed: parseInt(e.target.value) || 0})}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                          value={schoolForm.moneyCollected}
+                          readOnly
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Telugu Sets Taken Back</label>
+                        <input
+                          type="number"
+                          value={schoolForm.teluguSetsTakenBack}
+                          readOnly
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
                         />
                       </div>
                       
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">English Sets Distributed</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">English Sets Taken Back</label>
                         <input
                           type="number"
-                          value={schoolForm.englishSetsDistributed}
-                          onChange={(e) => setSchoolForm({...schoolForm, englishSetsDistributed: parseInt(e.target.value) || 0})}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                          value={schoolForm.englishSetsTakenBack}
+                          readOnly
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+                        />
+                      </div>
+                    </>
+                  )}
+                  
+                  {/* Only show inventory items when editing - View Only */}
+                  {editingItem && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Telugu Sets Issued</label>
+                        <input
+                          type="number"
+                          value={schoolForm.teluguSetsIssued}
+                          readOnly
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">English Sets Issued</label>
+                        <input
+                          type="number"
+                          value={schoolForm.englishSetsIssued}
+                          readOnly
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Free Sets Given</label>
+                        <input
+                          type="number"
+                          value={schoolForm.freeSetsGiven}
+                          readOnly
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Pamphlets</label>
+                        <input
+                          type="number"
+                          value={schoolForm.pamphlets || 0}
+                          readOnly
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Per Set Price (₹)</label>
+                        <input
+                          type="number"
+                          value={schoolForm.perSetPrice}
+                          readOnly
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
                         />
                       </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Money Collected (₹)</label>
-                      <input
-                        type="number"
-                        value={schoolForm.moneyCollected}
-                        onChange={(e) => setSchoolForm({...schoolForm, moneyCollected: parseInt(e.target.value) || 0})}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Telugu Sets Taken Back</label>
-                      <input
-                        type="number"
-                        value={schoolForm.teluguSetsTakenBack}
-                        onChange={(e) => setSchoolForm({...schoolForm, teluguSetsTakenBack: parseInt(e.target.value) || 0})}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">English Sets Taken Back</label>
-                      <input
-                        type="number"
-                        value={schoolForm.englishSetsTakenBack}
-                        onChange={(e) => setSchoolForm({...schoolForm, englishSetsTakenBack: parseInt(e.target.value) || 0})}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                      />
-                    </div>
-                  </div>
+                  )}
 
-                  {/* Incremental Updates Section - Only shown when editing */}
+                  {/* Incremental Updates Section - Only shown when editing, appears after inventory items */}
                   {editingItem && (
                     <div className="bg-orange-50 p-4 rounded-lg border-2 border-orange-200">
                       <h4 className="text-lg font-semibold text-orange-800 mb-4 flex items-center">
@@ -6217,62 +6384,9 @@ const addTeam = async () => {
                     </div>
                   )}
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Telugu Sets Issued</label>
-                      <input
-                        type="number"
-                        value={schoolForm.teluguSetsIssued}
-                        onChange={(e) => setSchoolForm({...schoolForm, teluguSetsIssued: parseInt(e.target.value) || 0})}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">English Sets Issued</label>
-                      <input
-                        type="number"
-                        value={schoolForm.englishSetsIssued}
-                        onChange={(e) => setSchoolForm({...schoolForm, englishSetsIssued: parseInt(e.target.value) || 0})}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Free Sets Given</label>
-                      <input
-                        type="number"
-                        value={schoolForm.freeSetsGiven}
-                        onChange={(e) => setSchoolForm({...schoolForm, freeSetsGiven: parseInt(e.target.value) || 0})}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Pamphlets</label>
-                      <input
-                        type="number"
-                        value={schoolForm.pamphlets || 0}
-                        onChange={(e) => setSchoolForm({...schoolForm, pamphlets: parseInt(e.target.value) || 0})}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Per Set Price (₹)</label>
-                      <input
-                        type="number"
-                        value={schoolForm.perSetPrice}
-                        onChange={(e) => setSchoolForm({...schoolForm, perSetPrice: parseInt(e.target.value) || 0})}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                      />
-                    </div>
-                    
-                    
-                    
-                    <div className="col-span-2">
-                      <h5 className="text-sm font-semibold text-gray-700 mb-3">Contact Persons</h5>
+                  {/* Contact Persons - Always shown */}
+                  <div>
+                    <h5 className="text-sm font-semibold text-gray-700 mb-3">Contact Persons</h5>
                       <div className="space-y-4">
                         {/* Contact Person 1 */}
                         <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
@@ -6349,19 +6463,22 @@ const addTeam = async () => {
                           </div>
                         </div>
                       </div>
+                  </div>
+                  
+                  {/* Email - Only shown when editing */}
+                  {editingItem && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                      <input
+                        type="email"
+                        value={schoolForm.email}
+                        onChange={(e) => setSchoolForm({...schoolForm, email: e.target.value})}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      />
                     </div>
-                  </div>
+                  )}
                   
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                    <input
-                      type="email"
-                      value={schoolForm.email}
-                      onChange={(e) => setSchoolForm({...schoolForm, email: e.target.value})}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                    />
-                  </div>
-                  
+                  {/* Notes/Comments - Always shown */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Notes/Comments</label>
                     <textarea
