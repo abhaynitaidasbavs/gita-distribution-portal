@@ -405,6 +405,9 @@ const GitaDistributionPortal = () => {
   const [isInventoryIssuedSummaryCollapsed, setIsInventoryIssuedSummaryCollapsed] = useState(true);
   const [isInventoryManagementCollapsed, setIsInventoryManagementCollapsed] = useState(true);
   const [isInventoryTabIssuanceHistoryCollapsed, setIsInventoryTabIssuanceHistoryCollapsed] = useState(true);
+  // State for undo functionality
+  const [undoHistory, setUndoHistory] = useState([]); // Array of { schoolData, inventory, teamId, timestamp }
+  const [canUndo, setCanUndo] = useState(false);
   // State for filters in Pending Settlement Requests
   const [settlementStatusFilter, setSettlementStatusFilter] = useState('all');
   const [settlementMethodFilter, setSettlementMethodFilter] = useState('all');
@@ -826,6 +829,18 @@ const GitaDistributionPortal = () => {
     const currentInventory = teamData.inventory;
     console.log('Current team inventory:', currentInventory);
     
+    // SAVE STATE FOR UNDO - Save both school data and inventory before making changes
+    const undoState = {
+      schoolData: { ...originalSchool }, // Deep copy of original school data
+      inventory: { ...currentInventory }, // Deep copy of current inventory
+      teamId: teamId,
+      timestamp: new Date().toISOString()
+    };
+    
+    // Add to undo history
+    setUndoHistory(prev => [...prev, undoState]);
+    setCanUndo(true);
+    
     // OLD VALUES (what was previously recorded)
     const oldTeluguIssued = parseInt(originalSchool.teluguSetsIssued || 0);
     const oldEnglishIssued = parseInt(originalSchool.englishSetsIssued || 0);
@@ -926,6 +941,12 @@ const GitaDistributionPortal = () => {
       const warningMessage = `Warning: Inventory would go negative for the following items:\n\n${warnings.join('\n')}\n\nDo you want to proceed?`;
       const proceed = window.confirm(warningMessage);
       if (!proceed) {
+        // Remove the undo state we just added since user cancelled
+        setUndoHistory(prev => {
+          const newHistory = prev.slice(0, -1);
+          setCanUndo(newHistory.length > 0);
+          return newHistory;
+        });
         return;
       }
     }
@@ -972,6 +993,13 @@ const GitaDistributionPortal = () => {
     console.error('Error message:', error.message);
     console.error('============================');
     
+    // Remove the undo state if update failed
+    setUndoHistory(prev => {
+      const newHistory = prev.slice(0, -1);
+      setCanUndo(newHistory.length > 0);
+      return newHistory;
+    });
+    
     if (error.code === 'permission-denied') {
       alert('Permission denied. You may not have access to update this school or inventory.');
     } else {
@@ -979,6 +1007,97 @@ const GitaDistributionPortal = () => {
     }
   }
 };
+
+// Undo function to restore previous state
+const undoLastChange = async () => {
+  if (undoHistory.length === 0) {
+    alert('No changes to undo');
+    return;
+  }
+  
+  try {
+    // Get the last undo state
+    const lastUndoState = undoHistory[undoHistory.length - 1];
+    
+    // Confirm undo action
+    const confirmUndo = window.confirm(
+      `Are you sure you want to undo the last change?\n\n` +
+      `This will restore:\n` +
+      `- School data to its previous state\n` +
+      `- Team inventory to its previous state\n\n` +
+      `This action cannot be undone.`
+    );
+    
+    if (!confirmUndo) {
+      return;
+    }
+    
+    // Restore school data
+    const schoolRef = doc(db, 'schools', lastUndoState.schoolData.id);
+    const schoolUpdateData = {
+      ...lastUndoState.schoolData,
+      lastUpdated: new Date().toISOString(),
+      undoRestored: true // Flag to indicate this was restored from undo
+    };
+    // Remove id and other Firestore-specific fields that shouldn't be updated
+    delete schoolUpdateData.id;
+    
+    await updateDoc(schoolRef, schoolUpdateData);
+    console.log('School data restored from undo');
+    
+    // Restore inventory
+    const teamDocRef = doc(db, 'teams', lastUndoState.teamId);
+    await updateDoc(teamDocRef, {
+      inventory: lastUndoState.inventory
+    });
+    console.log('Inventory restored from undo');
+    
+    // Remove from undo history
+    setUndoHistory(prev => {
+      const newHistory = prev.slice(0, -1);
+      setCanUndo(newHistory.length > 0);
+      return newHistory;
+    });
+    
+    // Refresh the editing item if modal is still open
+    if (editingItem && editingItem.id === lastUndoState.schoolData.id) {
+      // Fetch updated school data
+      const updatedSchoolSnap = await getDoc(schoolRef);
+      if (updatedSchoolSnap.exists()) {
+        const updatedSchool = {
+          id: updatedSchoolSnap.id,
+          ...updatedSchoolSnap.data()
+        };
+        setEditingItem(updatedSchool);
+        
+        // Update form with restored data
+        const formData = {
+          ...updatedSchool,
+          activity: getSchoolActivity(updatedSchool),
+          contact_person_1_name: updatedSchool.contact_person_1_name || updatedSchool.contactPerson || '',
+          contact_person_1_phone: updatedSchool.contact_person_1_phone || updatedSchool.contactNumber || '',
+          contact_person_2_name: updatedSchool.contact_person_2_name || '',
+          contact_person_2_phone: updatedSchool.contact_person_2_phone || '',
+          contact_person_3_name: updatedSchool.contact_person_3_name || '',
+          contact_person_3_phone: updatedSchool.contact_person_3_phone || ''
+        };
+        setSchoolForm(formData);
+      }
+    }
+    
+    alert('Last change has been undone successfully!');
+    
+  } catch (error) {
+    console.error('=== ERROR UNDOING CHANGE ===');
+    console.error('Error object:', error);
+    console.error('Error code:', error.code);
+    console.error('Error message:', error.message);
+    console.error('============================');
+    
+    alert(`Error undoing change: ${error.message}`);
+  }
+};
+
   const deleteSchool = async (id) => {
   if (window.confirm('Are you sure you want to delete this school entry?')) {
     try {
@@ -3439,6 +3558,9 @@ const addTeam = async () => {
                             <button
                               onClick={() => {
                                 setEditingItem(school);
+                                // Clear undo history when starting a new edit
+                                setUndoHistory([]);
+                                setCanUndo(false);
                                 // Map old contactPerson/contactNumber to new format for backward compatibility
                                 // Also map legacy announcementStatus to activity
                                 const formData = {
@@ -6131,15 +6253,38 @@ const addTeam = async () => {
                 {modalType === 'issueInventory' && 'Issue Inventory to Team'}
                 {modalType === 'addInventory' && 'Add Inventory to Master'}
               </h3>
-              <button
-                onClick={() => {
-                  setShowModal(false);
-                  setEditingItem(null);
-                }}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <X className="w-6 h-6" />
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Undo button - only show when editing and there's undo history */}
+                {modalType === 'school' && editingItem && undoHistory.length > 0 && (
+                  <button
+                    onClick={undoLastChange}
+                    className="flex items-center space-x-1 px-3 py-1.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm"
+                    title={`Undo last change (${undoHistory.length} change${undoHistory.length > 1 ? 's' : ''} available)`}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                    </svg>
+                    <span>Undo</span>
+                    {undoHistory.length > 1 && (
+                      <span className="bg-gray-500 px-1.5 py-0.5 rounded text-xs">
+                        {undoHistory.length}
+                      </span>
+                    )}
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setShowModal(false);
+                    setEditingItem(null);
+                    // Clear undo history when closing modal
+                    setUndoHistory([]);
+                    setCanUndo(false);
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
             </div>
 
             <div className="p-6">
@@ -6572,6 +6717,9 @@ const addTeam = async () => {
                       onClick={() => {
                         setShowModal(false);
                         setEditingItem(null);
+                        // Clear undo history when cancelling
+                        setUndoHistory([]);
+                        setCanUndo(false);
                       }}
                       className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                     >
