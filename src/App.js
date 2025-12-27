@@ -401,6 +401,10 @@ const GitaDistributionPortal = () => {
   const [isTeamSettlementSummaryCollapsed, setIsTeamSettlementSummaryCollapsed] = useState(true);
   const [isInventoryIssuanceHistoryCollapsed, setIsInventoryIssuanceHistoryCollapsed] = useState(true);
   const [isPendingSettlementRequestsCollapsed, setIsPendingSettlementRequestsCollapsed] = useState(true);
+  // State for expand/collapse in inventory tab
+  const [isInventoryIssuedSummaryCollapsed, setIsInventoryIssuedSummaryCollapsed] = useState(true);
+  const [isInventoryManagementCollapsed, setIsInventoryManagementCollapsed] = useState(true);
+  const [isInventoryTabIssuanceHistoryCollapsed, setIsInventoryTabIssuanceHistoryCollapsed] = useState(true);
   // State for filters in Pending Settlement Requests
   const [settlementStatusFilter, setSettlementStatusFilter] = useState('all');
   const [settlementMethodFilter, setSettlementMethodFilter] = useState('all');
@@ -685,37 +689,33 @@ const GitaDistributionPortal = () => {
     console.log('Net English sets to deduct:', netEnglishSets);
     console.log('Total sets needing accessories:', totalSetsNeeded);
     
-    // Check if sufficient inventory exists
+    // Check if sufficient inventory exists and build warning message
+    const warnings = [];
+    
     if (netTeluguSets > 0) {
       if ((currentInventory.gitaTelugu || 0) < netTeluguSets) {
-        alert(`Insufficient Gita Telugu inventory. Available: ${currentInventory.gitaTelugu || 0}, Required: ${netTeluguSets}`);
-        return;
+        warnings.push(`Gita Telugu: Available ${currentInventory.gitaTelugu || 0}, Required ${netTeluguSets}`);
       }
       if ((currentInventory.bookletTelugu || 0) < netTeluguSets) {
-        alert(`Insufficient Booklet Telugu inventory. Available: ${currentInventory.bookletTelugu || 0}, Required: ${netTeluguSets}`);
-        return;
+        warnings.push(`Booklet Telugu: Available ${currentInventory.bookletTelugu || 0}, Required ${netTeluguSets}`);
       }
     }
     
     if (netEnglishSets > 0) {
       if ((currentInventory.gitaEnglish || 0) < netEnglishSets) {
-        alert(`Insufficient Gita English inventory. Available: ${currentInventory.gitaEnglish || 0}, Required: ${netEnglishSets}`);
-        return;
+        warnings.push(`Gita English: Available ${currentInventory.gitaEnglish || 0}, Required ${netEnglishSets}`);
       }
       if ((currentInventory.bookletEnglish || 0) < netEnglishSets) {
-        alert(`Insufficient Booklet English inventory. Available: ${currentInventory.bookletEnglish || 0}, Required: ${netEnglishSets}`);
-        return;
+        warnings.push(`Booklet English: Available ${currentInventory.bookletEnglish || 0}, Required ${netEnglishSets}`);
       }
     }
     
     if (totalSetsNeeded > 0) {
       if ((currentInventory.calendar || 0) < totalSetsNeeded) {
-        alert(`Insufficient Calendar inventory. Available: ${currentInventory.calendar || 0}, Required: ${totalSetsNeeded}`);
-        return;
+        warnings.push(`Calendar: Available ${currentInventory.calendar || 0}, Required ${totalSetsNeeded}`);
       }
       if ((currentInventory.chikki || 0) < totalSetsNeeded) {
-        alert(`Insufficient Chikki inventory. Available: ${currentInventory.chikki || 0}, Required: ${totalSetsNeeded}`);
-        return;
+        warnings.push(`Chikki: Available ${currentInventory.chikki || 0}, Required ${totalSetsNeeded}`);
       }
     }
     
@@ -723,20 +723,28 @@ const GitaDistributionPortal = () => {
     const pamphletsIssued = parseInt(schoolForm.pamphlets || 0);
     if (pamphletsIssued > 0) {
       if ((currentInventory.pamphlets || 0) < pamphletsIssued) {
-        alert(`Insufficient Pamphlets inventory. Available: ${currentInventory.pamphlets || 0}, Required: ${pamphletsIssued}`);
+        warnings.push(`Pamphlets: Available ${currentInventory.pamphlets || 0}, Required ${pamphletsIssued}`);
+      }
+    }
+    
+    // Show warning if inventory is insufficient, but allow proceeding
+    if (warnings.length > 0) {
+      const warningMessage = `Warning: Insufficient inventory for the following items:\n\n${warnings.join('\n')}\n\nInventory count will go negative. Do you want to proceed?`;
+      const proceed = window.confirm(warningMessage);
+      if (!proceed) {
         return;
       }
     }
     
-    // Calculate new inventory values
+    // Calculate new inventory values (allow negative values)
     const newInventory = {
-      gitaTelugu: Math.max(0, (currentInventory.gitaTelugu || 0) - netTeluguSets),
-      bookletTelugu: Math.max(0, (currentInventory.bookletTelugu || 0) - netTeluguSets),
-      gitaEnglish: Math.max(0, (currentInventory.gitaEnglish || 0) - netEnglishSets),
-      bookletEnglish: Math.max(0, (currentInventory.bookletEnglish || 0) - netEnglishSets),
-      calendar: Math.max(0, (currentInventory.calendar || 0) - totalSetsNeeded),
-      chikki: Math.max(0, (currentInventory.chikki || 0) - totalSetsNeeded),
-      pamphlets: Math.max(0, (currentInventory.pamphlets || 0) - pamphletsIssued)
+      gitaTelugu: (currentInventory.gitaTelugu || 0) - netTeluguSets,
+      bookletTelugu: (currentInventory.bookletTelugu || 0) - netTeluguSets,
+      gitaEnglish: (currentInventory.gitaEnglish || 0) - netEnglishSets,
+      bookletEnglish: (currentInventory.bookletEnglish || 0) - netEnglishSets,
+      calendar: (currentInventory.calendar || 0) - totalSetsNeeded,
+      chikki: (currentInventory.chikki || 0) - totalSetsNeeded,
+      pamphlets: (currentInventory.pamphlets || 0) - pamphletsIssued
     };
     
     console.log('New inventory will be:', newInventory);
@@ -882,30 +890,44 @@ const GitaDistributionPortal = () => {
     
     console.log('New inventory after delta:', newInventory);
     
-    // Validate that inventory doesn't go negative
+    // Check for pamphlets delta
+    const oldPamphlets = parseInt(originalSchool.pamphlets || 0);
+    const newPamphlets = parseInt(schoolForm.pamphlets || 0);
+    const deltaPamphlets = newPamphlets - oldPamphlets;
+    newInventory.pamphlets = Number(currentInventory.pamphlets || 0) - deltaPamphlets;
+    
+    // Check if inventory would go negative and build warning message
+    const warnings = [];
+    
     if (newInventory.gitaTelugu < 0) {
-      alert(`Insufficient Gita Telugu inventory. Would result in: ${newInventory.gitaTelugu}`);
-      return;
+      warnings.push(`Gita Telugu: Would result in ${newInventory.gitaTelugu}`);
     }
     if (newInventory.bookletTelugu < 0) {
-      alert(`Insufficient Booklet Telugu inventory. Would result in: ${newInventory.bookletTelugu}`);
-      return;
+      warnings.push(`Booklet Telugu: Would result in ${newInventory.bookletTelugu}`);
     }
     if (newInventory.gitaEnglish < 0) {
-      alert(`Insufficient Gita English inventory. Would result in: ${newInventory.gitaEnglish}`);
-      return;
+      warnings.push(`Gita English: Would result in ${newInventory.gitaEnglish}`);
     }
     if (newInventory.bookletEnglish < 0) {
-      alert(`Insufficient Booklet English inventory. Would result in: ${newInventory.bookletEnglish}`);
-      return;
+      warnings.push(`Booklet English: Would result in ${newInventory.bookletEnglish}`);
     }
     if (newInventory.calendar < 0) {
-      alert(`Insufficient Calendar inventory. Would result in: ${newInventory.calendar}`);
-      return;
+      warnings.push(`Calendar: Would result in ${newInventory.calendar}`);
     }
     if (newInventory.chikki < 0) {
-      alert(`Insufficient Chikki inventory. Would result in: ${newInventory.chikki}`);
-      return;
+      warnings.push(`Chikki: Would result in ${newInventory.chikki}`);
+    }
+    if (newInventory.pamphlets < 0) {
+      warnings.push(`Pamphlets: Would result in ${newInventory.pamphlets}`);
+    }
+    
+    // Show warning if inventory would go negative, but allow proceeding
+    if (warnings.length > 0) {
+      const warningMessage = `Warning: Inventory would go negative for the following items:\n\n${warnings.join('\n')}\n\nDo you want to proceed?`;
+      const proceed = window.confirm(warningMessage);
+      if (!proceed) {
+        return;
+      }
     }
     
     // Update school document
@@ -2806,7 +2828,10 @@ const addTeam = async () => {
                 const stats = getTeamStats(team.id);
                 return (
                   <div key={team.id} className="bg-white rounded-lg shadow-md p-6">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4">{team.name}</h3>
+                    <h3 className="text-lg font-semibold text-gray-800 mb-2">{team.name}</h3>
+                    {currentUser.role === 'admin' && team.username && (
+                      <p className="text-sm text-gray-500 mb-4">Username: <span className="font-medium text-gray-700">{team.username}</span></p>
+                    )}
                     
                     <div className="space-y-3">
                       <div className="flex justify-between items-center">
@@ -5044,9 +5069,24 @@ const addTeam = async () => {
                 {/* Inventory Summary Table */}
                 <div className="bg-white rounded-lg shadow-md overflow-hidden">
                   <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-                    <h3 className="text-lg font-semibold text-gray-800">Inventory Issued Summary</h3>
-                    <p className="text-sm text-gray-500">Total inventory items issued to each team</p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setIsInventoryIssuedSummaryCollapsed(!isInventoryIssuedSummaryCollapsed)}
+                        className="flex items-center justify-center w-8 h-8 hover:bg-gray-100 rounded transition-colors"
+                      >
+                        {isInventoryIssuedSummaryCollapsed ? (
+                          <ChevronDown className="w-5 h-5 text-gray-700" />
+                        ) : (
+                          <ChevronUp className="w-5 h-5 text-gray-700" />
+                        )}
+                      </button>
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-800">Inventory Issued Summary</h3>
+                        <p className="text-sm text-gray-500">Total inventory items issued to each team</p>
+                      </div>
+                    </div>
                   </div>
+                  {!isInventoryIssuedSummaryCollapsed && (
                   <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
@@ -5109,61 +5149,80 @@ const addTeam = async () => {
                       </tbody>
                     </table>
                   </div>
+                  )}
                 </div>
 
-                <div className="flex justify-between items-center">
-                  <h2 className="text-2xl font-bold text-gray-800">Inventory Management</h2>
-                  <div className="flex items-center space-x-4">
-                    {/* Pricing Configuration */}
-                    <div className="flex items-center space-x-2">
-                      <label className="text-sm font-medium text-gray-700">Price per Set:</label>
-                      <input
-                        type="number"
-                        value={perSetPrice}
-                        onChange={(e) => updatePerSetPrice(parseInt(e.target.value) || 200)}
-                        className="w-24 px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                      />
+                <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                  <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setIsInventoryManagementCollapsed(!isInventoryManagementCollapsed)}
+                          className="flex items-center justify-center w-8 h-8 hover:bg-gray-100 rounded transition-colors"
+                        >
+                          {isInventoryManagementCollapsed ? (
+                            <ChevronDown className="w-5 h-5 text-gray-700" />
+                          ) : (
+                            <ChevronUp className="w-5 h-5 text-gray-700" />
+                          )}
+                        </button>
+                        <h2 className="text-2xl font-bold text-gray-800">Inventory Management</h2>
+                      </div>
+                      {!isInventoryManagementCollapsed && (
+                      <div className="flex items-center space-x-4">
+                        {/* Pricing Configuration */}
+                        <div className="flex items-center space-x-2">
+                          <label className="text-sm font-medium text-gray-700">Price per Set:</label>
+                          <input
+                            type="number"
+                            value={perSetPrice}
+                            onChange={(e) => updatePerSetPrice(parseInt(e.target.value) || 200)}
+                            className="w-24 px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                          />
+                        </div>
+                        {/* Issue Inventory Button */}
+                        <button
+                          onClick={() => {
+                            setModalType('issueInventory');
+                            setIssueInventoryForm({
+                              teamId: '',
+                              gitaTelugu: 0, gitaEnglish: 0,
+                              bookletTelugu: 0, bookletEnglish: 0,
+                              calendar: 0, chikki: 0, pamphlets: 0,
+                              issuedDate: new Date().toISOString().split('T')[0],
+                              contactPerson: '',
+                              contactPhone: ''
+                            });
+                            setShowModal(true);
+                          }}
+                          className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>Issue Inventory</span>
+                        </button>
+                      </div>
+                      )}
                     </div>
-                    {/* Issue Inventory Button */}
-                    <button
-                      onClick={() => {
-                        setModalType('issueInventory');
-                        setIssueInventoryForm({
-                          teamId: '',
-                          gitaTelugu: 0, gitaEnglish: 0,
-                          bookletTelugu: 0, bookletEnglish: 0,
-                          calendar: 0, chikki: 0, pamphlets: 0,
-                          issuedDate: new Date().toISOString().split('T')[0],
-                          contactPerson: '',
-                          contactPhone: ''
-                        });
-                        setShowModal(true);
-                      }}
-                      className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>Issue Inventory</span>
-                    </button>
                   </div>
-                </div>
-                
-                {/* Team Selector for Admin */}
-                <div className="bg-white rounded-lg shadow-md p-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Select Team</label>
-                  <select
-                    value={selectedTeam || ''}
-                    onChange={(e) => setSelectedTeam(e.target.value || null)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                  >
-                    <option value="">All Teams</option>
-                    {teams.map(team => (
-                      <option key={team.id} value={team.id}>{team.name}</option>
-                    ))}
-                  </select>
-                </div>
+                  {!isInventoryManagementCollapsed && (
+                  <div className="p-6 space-y-6">
+                    {/* Team Selector for Admin */}
+                    <div className="bg-white rounded-lg shadow-md p-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Select Team</label>
+                      <select
+                        value={selectedTeam || ''}
+                        onChange={(e) => setSelectedTeam(e.target.value || null)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      >
+                        <option value="">All Teams</option>
+                        {teams.map(team => (
+                          <option key={team.id} value={team.id}>{team.name}</option>
+                        ))}
+                      </select>
+                    </div>
 
-                {/* Inventory Cards for Selected Team(s) */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {/* Inventory Cards for Selected Team(s) */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {(selectedTeam ? [teams.find(t => t.id === selectedTeam)] : teams).filter(Boolean).map(team => {
                     if (!team.inventory) return null;
                     return (
@@ -5352,15 +5411,31 @@ const addTeam = async () => {
                       </div>
                     );
                   })}
+                    </div>
+                  </div>
+                  )}
                 </div>
 
                 {/* Inventory Issuance History Table */}
                 <div className="bg-white rounded-lg shadow-md overflow-hidden">
                   <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-blue-50 border-b">
-                    <div>
-                      <h3 className="text-lg font-semibold text-blue-900">Inventory Issuance History</h3>
-                      <p className="text-sm text-blue-700">Complete history of all inventory items issued to teams</p>
+                    <div className="flex items-center gap-2 flex-1">
+                      <button
+                        onClick={() => setIsInventoryTabIssuanceHistoryCollapsed(!isInventoryTabIssuanceHistoryCollapsed)}
+                        className="flex items-center justify-center w-8 h-8 hover:bg-blue-100 rounded transition-colors"
+                      >
+                        {isInventoryTabIssuanceHistoryCollapsed ? (
+                          <ChevronDown className="w-5 h-5 text-blue-900" />
+                        ) : (
+                          <ChevronUp className="w-5 h-5 text-blue-900" />
+                        )}
+                      </button>
+                      <div>
+                        <h3 className="text-lg font-semibold text-blue-900">Inventory Issuance History</h3>
+                        <p className="text-sm text-blue-700">Complete history of all inventory items issued to teams</p>
+                      </div>
                     </div>
+                    {!isInventoryTabIssuanceHistoryCollapsed && (
                     <button
                       onClick={() => exportTableToCSV('inventory-issuance-table', 'inventory_issuance')}
                       className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
@@ -5368,7 +5443,9 @@ const addTeam = async () => {
                       <Download className="w-4 h-4" />
                       <span>Export CSV</span>
                     </button>
+                    )}
                   </div>
+                  {!isInventoryTabIssuanceHistoryCollapsed && (
                   <div className="overflow-x-auto">
                     <table id="inventory-issuance-table" className="w-full min-w-[700px]">
                       <thead className="bg-gray-50 border-b">
@@ -5443,6 +5520,7 @@ const addTeam = async () => {
                       </tbody>
                     </table>
                   </div>
+                  )}
                 </div>
               </>
             ) : (
