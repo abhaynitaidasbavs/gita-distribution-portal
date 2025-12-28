@@ -2946,7 +2946,12 @@ const addTeam = async () => {
                   <div key={team.id} className="bg-white rounded-lg shadow-md p-6">
                     <h3 className="text-lg font-semibold text-gray-800 mb-2">{team.name}</h3>
                     {currentUser.role === 'admin' && team.username && (
-                      <p className="text-sm text-gray-500 mb-4">Username: <span className="font-medium text-gray-700">{team.username}</span></p>
+                      <>
+                        <p className="text-sm text-gray-500 mb-1">Username: <span className="font-medium text-gray-700">{team.username}</span></p>
+                        {team.contact && (
+                          <p className="text-sm text-gray-500 mb-4">Phone: <span className="font-medium text-gray-700">{team.contact}</span></p>
+                        )}
+                      </>
                     )}
                     
                     <div className="space-y-3">
@@ -3032,6 +3037,21 @@ const addTeam = async () => {
                   <Plus className="w-4 h-4" />
                   <span>Add School</span>
                 </button>
+                
+                {currentUser.role === 'admin' && (
+                  <button
+                    onClick={() => {
+                      setModalType('team');
+                      setEditingItem(null);
+                      resetTeamForm();
+                      setShowModal(true);
+                    }}
+                    className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add Team</span>
+                  </button>
+                )}
                 
                 {currentUser.role === 'team' && (
                   <button
