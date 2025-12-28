@@ -2921,6 +2921,72 @@ const addTeam = async () => {
         {/* Dashboard View */}
         {activeView === 'dashboard' && (
           <div className="space-y-6">
+            {/* Quick Actions */}
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Quick Actions</h3>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={() => {
+                    setModalType('school');
+                    setEditingItem(null);
+                    resetSchoolForm();
+                    setShowModal(true);
+                  }}
+                  className="flex items-center space-x-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add School</span>
+                </button>
+                
+                {currentUser.role === 'admin' && (
+                  <button
+                    onClick={() => {
+                      setModalType('team');
+                      setEditingItem(null);
+                      resetTeamForm();
+                      setShowModal(true);
+                    }}
+                    className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add Team</span>
+                  </button>
+                )}
+                
+                {currentUser.role === 'team' && (
+                  <button
+                    onClick={() => {
+                      setModalType('requirement');
+                      resetRequirementForm();
+                      setShowModal(true);
+                    }}
+                    className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    <Package className="w-4 h-4" />
+                    <span>Raise Requirement</span>
+                  </button>
+                )}
+                
+              </div>
+            </div>
+
+            {/* Team Selector for Admin */}
+            {currentUser.role === 'admin' && (
+              <div className="bg-white rounded-lg shadow-md p-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Select Team</label>
+                <select
+                  value={selectedTeam || ''}
+                  onChange={(e) => setSelectedTeam(e.target.value || null)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                >
+                  <option value="">All Teams</option>
+                  {teams.map(team => (
+                    <option key={team.id} value={team.id}>{team.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {(currentUser.role === 'admin' ? (selectedTeam ? [teams.find(t => t.id === selectedTeam)] : teams) : [teams.find(t => t.id === currentUser.teamId)]).filter(Boolean).map(team => {
@@ -3002,72 +3068,6 @@ const addTeam = async () => {
                   </div>
                 );
               })}
-            </div>
-
-            {/* Team Selector for Admin */}
-            {currentUser.role === 'admin' && (
-              <div className="bg-white rounded-lg shadow-md p-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Select Team</label>
-                <select
-                  value={selectedTeam || ''}
-                  onChange={(e) => setSelectedTeam(e.target.value || null)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                >
-                  <option value="">All Teams</option>
-                  {teams.map(team => (
-                    <option key={team.id} value={team.id}>{team.name}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Quick Actions */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Quick Actions</h3>
-              <div className="flex flex-wrap gap-3">
-                <button
-                  onClick={() => {
-                    setModalType('school');
-                    setEditingItem(null);
-                    resetSchoolForm();
-                    setShowModal(true);
-                  }}
-                  className="flex items-center space-x-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Add School</span>
-                </button>
-                
-                {currentUser.role === 'admin' && (
-                  <button
-                    onClick={() => {
-                      setModalType('team');
-                      setEditingItem(null);
-                      resetTeamForm();
-                      setShowModal(true);
-                    }}
-                    className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Add Team</span>
-                  </button>
-                )}
-                
-                {currentUser.role === 'team' && (
-                  <button
-                    onClick={() => {
-                      setModalType('requirement');
-                      resetRequirementForm();
-                      setShowModal(true);
-                    }}
-                    className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    <Package className="w-4 h-4" />
-                    <span>Raise Requirement</span>
-                  </button>
-                )}
-                
-              </div>
             </div>
           </div>
         )}
