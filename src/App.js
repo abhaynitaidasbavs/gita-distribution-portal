@@ -2921,23 +2921,6 @@ const addTeam = async () => {
         {/* Dashboard View */}
         {activeView === 'dashboard' && (
           <div className="space-y-6">
-            {/* Team Selector for Admin */}
-            {currentUser.role === 'admin' && (
-              <div className="bg-white rounded-lg shadow-md p-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Select Team</label>
-                <select
-                  value={selectedTeam || ''}
-                  onChange={(e) => setSelectedTeam(e.target.value || null)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                >
-                  <option value="">All Teams</option>
-                  {teams.map(team => (
-                    <option key={team.id} value={team.id}>{team.name}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {(currentUser.role === 'admin' ? (selectedTeam ? [teams.find(t => t.id === selectedTeam)] : teams) : [teams.find(t => t.id === currentUser.teamId)]).filter(Boolean).map(team => {
@@ -3020,6 +3003,23 @@ const addTeam = async () => {
                 );
               })}
             </div>
+
+            {/* Team Selector for Admin */}
+            {currentUser.role === 'admin' && (
+              <div className="bg-white rounded-lg shadow-md p-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Select Team</label>
+                <select
+                  value={selectedTeam || ''}
+                  onChange={(e) => setSelectedTeam(e.target.value || null)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                >
+                  <option value="">All Teams</option>
+                  {teams.map(team => (
+                    <option key={team.id} value={team.id}>{team.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Quick Actions */}
             <div className="bg-white rounded-lg shadow-md p-6">
