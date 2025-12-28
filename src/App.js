@@ -26,6 +26,9 @@ import {
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Download, Users, BookOpen, DollarSign, Package, Bell, Edit2, Trash2, Eye, Filter, X, Check, AlertCircle, LogOut, Save, ChevronDown, ChevronUp, Trophy, MoreVertical, TrendingUp, TrendingDown, Clock, Calendar, Info } from 'lucide-react';
 
+// Flag to enable/disable inline editing features
+const ENABLE_INLINE_EDIT = false;
+
 const ISSUE_ITEM_FIELDS = [
   { key: 'gitaTelugu', label: 'Gita Telugu' },
   { key: 'bookletTelugu', label: 'Booklet Telugu' },
@@ -2843,12 +2846,6 @@ const addTeam = async () => {
             {currentUser.role === 'admin' && (
               <>
                 <button
-                  onClick={() => setActiveView('teams')}
-                  className={`px-6 py-3 font-medium ${activeView === 'teams' ? 'text-orange-600 border-b-2 border-orange-600' : 'text-gray-600 hover:text-orange-600'}`}
-                >
-                  Teams
-                </button>
-                <button
                   onClick={() => setActiveView('inventory')}
                   className={`px-6 py-3 font-medium ${activeView === 'inventory' ? 'text-orange-600 border-b-2 border-orange-600' : 'text-gray-600 hover:text-orange-600'}`}
                 >
@@ -3814,104 +3811,6 @@ const addTeam = async () => {
                   </tbody>
                 </table>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Teams View (Admin Only) */}
-        {activeView === 'teams' && currentUser.role === 'admin' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-gray-800">Manage Teams</h2>
-              <button
-                onClick={() => {
-                  setModalType('team');
-                  resetTeamForm();
-                  setShowModal(true);
-                }}
-                className="flex items-center space-x-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Team</span>
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {teams.map(team => {
-                const stats = getTeamStats(team.id);
-                return (
-                  <div key={team.id} className="bg-white rounded-lg shadow-md p-6">
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-800">{team.name}</h3>
-                        <p className="text-sm text-gray-600">{team.contact}</p>
-                      </div>
-                      <Users className="w-8 h-8 text-orange-600" />
-                    </div>
-                    
-                    <div className="space-y-2 mb-4">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Username:</span>
-                        <span className="font-medium text-gray-800">{team.username}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Schools:</span>
-                        <span className="font-medium text-gray-800">{stats.totalSchools}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Telugu Sets:</span>
-                        <span className="font-medium text-gray-800">{stats.totalTeluguDistributed}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">English Sets:</span>
-                        <span className="font-medium text-gray-800">{stats.totalEnglishDistributed}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Total Sets:</span>
-                        <span className="font-medium text-green-600">{stats.totalDistributed}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Money Collected:</span>
-                        <span className="font-medium text-green-700">₹{stats.totalCollected.toLocaleString()}</span>
-                      </div>
-                      {/* Settlement Calculation */}
-                      {(() => {
-                        const settlement = calculateTeamSettlementDifference(team.id);
-                        return (
-                          <>
-                            <div className="border-t pt-2 mt-2">
-                              <div className="flex justify-between text-sm">
-                                <span className="text-gray-600">Total Settled:</span>
-                                <span className="font-medium text-blue-700">₹{settlement.totalSettled.toLocaleString()}</span>
-                              </div>
-                              <div className="flex justify-between text-sm">
-                                <span className="text-gray-600">Expected Amount:</span>
-                                <span className="font-medium text-purple-700">₹{settlement.expectedAmount.toLocaleString()}</span>
-                              </div>
-                              <div className="flex justify-between text-sm">
-                                <span className="text-gray-600">Difference:</span>
-                                <span className={`font-medium ${settlement.difference >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                                  {settlement.difference >= 0 ? '+' : ''}₹{settlement.difference.toLocaleString()}
-                                </span>
-                              </div>
-                            </div>
-                          </>
-                        );
-                      })()}
-                    </div>
-                    
-                    <div className="border-t pt-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Remaining Sets</label>
-                      <input
-                        type="number"
-                        value={team.setsRemaining}
-                        onChange={(e) => updateTeamSets(team.id, e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                      />
-                    </div>
-                  </div>
-                );
-              })}
             </div>
           </div>
         )}
@@ -5298,8 +5197,9 @@ const addTeam = async () => {
                           <input
                             type="number"
                             value={perSetPrice}
-                            onChange={(e) => updatePerSetPrice(parseInt(e.target.value) || 200)}
-                            className="w-24 px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                            onChange={(e) => ENABLE_INLINE_EDIT && updatePerSetPrice(parseInt(e.target.value) || 200)}
+                            disabled={!ENABLE_INLINE_EDIT}
+                            className="w-24 px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                           />
                         </div>
                         {/* Issue Inventory Button */}
