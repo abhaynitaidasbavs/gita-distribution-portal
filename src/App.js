@@ -425,7 +425,7 @@ const GitaDistributionPortal = () => {
   // State for Quick View modal
   const [quickViewSettlement, setQuickViewSettlement] = useState(null);
   const [settlementForm, setSettlementForm] = useState({
-    amount: 0, paymentMethod: 'Cash', date: new Date().toISOString().split('T')[0], notes: ''
+    amount: 0, paymentMethod: 'Cash', date: new Date().toISOString().split('T')[0], notes: '', teamId: ''
   });
   const [expenses, setExpenses] = useState([]);
   const [expenseForm, setExpenseForm] = useState({
@@ -1864,15 +1864,26 @@ const addTeam = async () => {
   // Money settlement management
   const submitMoneySettlement = async () => {
     try {
+      // For admin: use selected teamId from form, for team: use currentUser.teamId
+      const selectedTeamId = currentUser.role === 'admin' ? settlementForm.teamId : currentUser.teamId;
+      const selectedTeam = teams.find(t => t.id === selectedTeamId);
+      
+      if (!selectedTeamId || !selectedTeam) {
+        alert('Please select a team');
+        return;
+      }
+
       const settlementData = {
-        teamId: currentUser.teamId,
-        teamName: currentUser.name,
+        teamId: selectedTeamId,
+        teamName: selectedTeam.name,
         amount: parseFloat(settlementForm.amount),
         paymentMethod: settlementForm.paymentMethod,
         date: settlementForm.date,
         notes: settlementForm.notes,
         status: 'pending',
-        submittedAt: new Date().toISOString()
+        submittedAt: new Date().toISOString(),
+        submittedBy: currentUser.role === 'admin' ? 'admin' : 'team',
+        submittedByName: currentUser.name
       };
 
       await addDoc(collection(db, 'moneySettlements'), settlementData);
@@ -2541,7 +2552,7 @@ const addTeam = async () => {
   };
 
   const resetSettlementForm = () => {
-    setSettlementForm({ amount: 0, paymentMethod: 'Cash', date: new Date().toISOString().split('T')[0], notes: '' });
+    setSettlementForm({ amount: 0, paymentMethod: 'Cash', date: new Date().toISOString().split('T')[0], notes: '', teamId: '' });
   };
 
   // Calculations
@@ -3928,7 +3939,7 @@ const addTeam = async () => {
               <h2 className="text-2xl font-bold text-gray-800">
                 {currentUser.role === 'admin' ? 'Money Settlements' : 'Submit Money Settlement'}
               </h2>
-              {currentUser.role === 'team' && (
+              {(currentUser.role === 'team' || currentUser.role === 'admin') && (
                 <button
                   onClick={() => {
                     setModalType('settlement');
@@ -3938,7 +3949,7 @@ const addTeam = async () => {
                   className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
                 >
                   <DollarSign className="w-4 h-4" />
-                  <span>Submit Settlement</span>
+                  <span>{currentUser.role === 'admin' ? 'Submit Settlement on Behalf of Team' : 'Submit Settlement'}</span>
                 </button>
               )}
             </div>
@@ -7030,6 +7041,23 @@ const addTeam = async () => {
               {/* Settlement Form */}
               {modalType === 'settlement' && (
                 <div className="space-y-4">
+                  {currentUser.role === 'admin' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Select Team *</label>
+                      <select
+                        value={settlementForm.teamId}
+                        onChange={(e) => setSettlementForm({...settlementForm, teamId: e.target.value})}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                        required
+                      >
+                        <option value="">-- Select a Team --</option>
+                        {teams.map(team => (
+                          <option key={team.id} value={team.id}>{team.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Amount (₹) *</label>
                     <input
