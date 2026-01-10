@@ -1917,7 +1917,23 @@ const addTeam = async () => {
       }
       
       // Use Firestore transaction to ensure atomic updates
+      // IMPORTANT: All reads must happen before all writes
       await runTransaction(db, async (transaction) => {
+        // ===== PHASE 1: ALL READS FIRST =====
+        
+        // Read team data
+        let teamSnap = null;
+        if (settlementData.teamId) {
+          const teamRef = doc(db, 'teams', settlementData.teamId);
+          teamSnap = await transaction.get(teamRef);
+        }
+
+        // Read admin account data
+        const adminAccountRef = doc(db, 'adminAccount', 'main');
+        const adminAccountSnap = await transaction.get(adminAccountRef);
+        
+        // ===== PHASE 2: ALL WRITES AFTER READS =====
+        
         // Update settlement status
         transaction.update(settlementRef, {
           status: 'approved',
@@ -1925,23 +1941,16 @@ const addTeam = async () => {
           approvedBy: currentUser.uid
         });
 
-        // Update team's total money settled atomically
-        if (settlementData.teamId) {
+        // Update team's total money settled
+        if (settlementData.teamId && teamSnap && teamSnap.exists()) {
           const teamRef = doc(db, 'teams', settlementData.teamId);
-          const teamSnap = await transaction.get(teamRef);
-          
-          if (teamSnap.exists()) {
-            const currentTotalSettled = (teamSnap.data().totalMoneySettled || 0);
-            transaction.update(teamRef, {
-              totalMoneySettled: currentTotalSettled + parseFloat(settlementData.amount)
-            });
-          }
+          const currentTotalSettled = (teamSnap.data().totalMoneySettled || 0);
+          transaction.update(teamRef, {
+            totalMoneySettled: currentTotalSettled + parseFloat(settlementData.amount)
+          });
         }
 
-        // Update admin account atomically
-        const adminAccountRef = doc(db, 'adminAccount', 'main');
-        const adminAccountSnap = await transaction.get(adminAccountRef);
-        
+        // Update admin account
         if (adminAccountSnap.exists()) {
           const currentData = adminAccountSnap.data();
           const newTotalReceived = (currentData.totalReceived || 0) + parseFloat(settlementData.amount);
