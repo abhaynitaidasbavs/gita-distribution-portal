@@ -1998,6 +1998,101 @@ const addTeam = async () => {
     }
   };
 
+  // Reverse an approved settlement (change from approved to declined)
+  const reverseApprovedSettlement = async (settlementId) => {
+    try {
+      const settlementRef = doc(db, 'moneySettlements', settlementId);
+      const settlementSnap = await getDoc(settlementRef);
+      
+      if (!settlementSnap.exists()) {
+        alert('Settlement not found');
+        return;
+      }
+
+      const settlementData = settlementSnap.data();
+      
+      // Check if already declined
+      if (settlementData.status === 'declined') {
+        alert('This settlement is already declined!');
+        return;
+      }
+
+      // Check if it's approved
+      if (settlementData.status !== 'approved') {
+        alert('Only approved settlements can be reversed!');
+        return;
+      }
+
+      const confirmReverse = window.confirm(
+        `⚠️ REVERSE APPROVED SETTLEMENT\n\n` +
+        `Team: ${settlementData.teamName}\n` +
+        `Amount: ₹${parseFloat(settlementData.amount).toLocaleString()}\n\n` +
+        `This will:\n` +
+        `• Change status from APPROVED to DECLINED\n` +
+        `• SUBTRACT ₹${parseFloat(settlementData.amount).toLocaleString()} from team's total money settled\n` +
+        `• SUBTRACT ₹${parseFloat(settlementData.amount).toLocaleString()} from admin account\n\n` +
+        `Do you want to proceed?`
+      );
+
+      if (!confirmReverse) {
+        return;
+      }
+
+      // Use Firestore transaction to ensure atomic updates
+      // IMPORTANT: All reads must happen before all writes
+      await runTransaction(db, async (transaction) => {
+        // ===== PHASE 1: ALL READS FIRST =====
+        
+        // Read team data
+        let teamSnap = null;
+        if (settlementData.teamId) {
+          const teamRef = doc(db, 'teams', settlementData.teamId);
+          teamSnap = await transaction.get(teamRef);
+        }
+
+        // Read admin account data
+        const adminAccountRef = doc(db, 'adminAccount', 'main');
+        const adminAccountSnap = await transaction.get(adminAccountRef);
+        
+        // ===== PHASE 2: ALL WRITES AFTER READS =====
+        
+        // Update settlement status to declined
+        transaction.update(settlementRef, {
+          status: 'declined',
+          declinedAt: new Date().toISOString(),
+          declinedBy: currentUser.uid,
+          reversedFrom: 'approved',
+          reversedAt: new Date().toISOString()
+        });
+
+        // Subtract from team's total money settled
+        if (settlementData.teamId && teamSnap && teamSnap.exists()) {
+          const teamRef = doc(db, 'teams', settlementData.teamId);
+          const currentTotalSettled = (teamSnap.data().totalMoneySettled || 0);
+          const newTotal = Math.max(0, currentTotalSettled - parseFloat(settlementData.amount));
+          transaction.update(teamRef, {
+            totalMoneySettled: newTotal
+          });
+        }
+
+        // Subtract from admin account
+        if (adminAccountSnap.exists()) {
+          const currentData = adminAccountSnap.data();
+          const newTotalReceived = Math.max(0, (currentData.totalReceived || 0) - parseFloat(settlementData.amount));
+          transaction.update(adminAccountRef, {
+            totalReceived: newTotalReceived,
+            balance: newTotalReceived - (currentData.totalExpenses || 0)
+          });
+        }
+      });
+
+      alert('✅ Settlement reversed successfully!\n\nStatus changed to DECLINED and all totals have been adjusted.');
+    } catch (error) {
+      console.error('Error reversing settlement:', error);
+      alert('Error reversing settlement: ' + error.message);
+    }
+  };
+
   // Reconcile team settlement totals
   const reconcileTeamSettlements = async () => {
     if (!window.confirm('This will analyze all team settlement totals by comparing approved settlements with database values.\n\nContinue with analysis?')) {
@@ -4551,6 +4646,19 @@ const addTeam = async () => {
                                           <X className="w-3 h-3" />
                                         </button>
                                       </div>
+                                    )}
+                                    {settlement.status === 'approved' && (
+                                      <button
+                                        onClick={() => reverseApprovedSettlement(settlement.id)}
+                                        className="p-1.5 bg-orange-600 text-white text-xs rounded hover:bg-orange-700 transition-colors flex items-center gap-1"
+                                        title="Reverse to Declined"
+                                      >
+                                        <AlertCircle className="w-3 h-3" />
+                                        <span>Reverse</span>
+                                      </button>
+                                    )}
+                                    {settlement.status === 'declined' && (
+                                      <span className="text-xs text-gray-500">-</span>
                                     )}
                                   </td>
                                   <td className="px-4 py-3 text-sm text-gray-700">
