@@ -14,7 +14,8 @@ import {
   where,
   onSnapshot,
   Timestamp,
-  orderBy
+  orderBy,
+  runTransaction
 } from 'firebase/firestore';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { 
@@ -1909,49 +1910,58 @@ const addTeam = async () => {
 
       const settlementData = settlementSnap.data();
       
-      // Update settlement status
-      await updateDoc(settlementRef, {
-        status: 'approved',
-        approvedAt: new Date().toISOString(),
-        approvedBy: currentUser.uid
-      });
+      // Check if already approved to prevent double-approval
+      if (settlementData.status === 'approved') {
+        alert('This settlement has already been approved!');
+        return;
+      }
+      
+      // Use Firestore transaction to ensure atomic updates
+      await runTransaction(db, async (transaction) => {
+        // Update settlement status
+        transaction.update(settlementRef, {
+          status: 'approved',
+          approvedAt: new Date().toISOString(),
+          approvedBy: currentUser.uid
+        });
 
-      // Update team's total money settled
-      if (settlementData.teamId) {
-        const teamRef = doc(db, 'teams', settlementData.teamId);
-        const teamSnap = await getDoc(teamRef);
+        // Update team's total money settled atomically
+        if (settlementData.teamId) {
+          const teamRef = doc(db, 'teams', settlementData.teamId);
+          const teamSnap = await transaction.get(teamRef);
+          
+          if (teamSnap.exists()) {
+            const currentTotalSettled = (teamSnap.data().totalMoneySettled || 0);
+            transaction.update(teamRef, {
+              totalMoneySettled: currentTotalSettled + parseFloat(settlementData.amount)
+            });
+          }
+        }
+
+        // Update admin account atomically
+        const adminAccountRef = doc(db, 'adminAccount', 'main');
+        const adminAccountSnap = await transaction.get(adminAccountRef);
         
-        if (teamSnap.exists()) {
-          const currentTotalSettled = (teamSnap.data().totalMoneySettled || 0);
-          await updateDoc(teamRef, {
-            totalMoneySettled: currentTotalSettled + parseFloat(settlementData.amount)
+        if (adminAccountSnap.exists()) {
+          const currentData = adminAccountSnap.data();
+          const newTotalReceived = (currentData.totalReceived || 0) + parseFloat(settlementData.amount);
+          transaction.update(adminAccountRef, {
+            totalReceived: newTotalReceived,
+            balance: newTotalReceived - (currentData.totalExpenses || 0)
+          });
+        } else {
+          transaction.set(adminAccountRef, {
+            totalReceived: parseFloat(settlementData.amount),
+            totalExpenses: 0,
+            balance: parseFloat(settlementData.amount)
           });
         }
-      }
+      });
 
-      // Add amount to admin account
-      const adminAccountRef = doc(db, 'adminAccount', 'main');
-      const adminAccountSnap = await getDoc(adminAccountRef);
-      
-      if (adminAccountSnap.exists()) {
-        const currentData = adminAccountSnap.data();
-        const newTotalReceived = (currentData.totalReceived || 0) + parseFloat(settlementData.amount);
-        await updateDoc(adminAccountRef, {
-          totalReceived: newTotalReceived,
-          balance: newTotalReceived - (currentData.totalExpenses || 0)
-        });
-      } else {
-        await setDoc(adminAccountRef, {
-          totalReceived: parseFloat(settlementData.amount),
-          totalExpenses: 0,
-          balance: parseFloat(settlementData.amount)
-        });
-      }
-
-      alert('Money settlement approved!');
+      alert('Money settlement approved successfully!');
     } catch (error) {
       console.error('Error approving settlement:', error);
-      alert('Error approving settlement. Please try again.');
+      alert('Error approving settlement: ' + error.message);
     }
   };
 
@@ -1976,6 +1986,96 @@ const addTeam = async () => {
     } catch (error) {
       console.error('Error declining settlement:', error);
       alert('Error declining settlement. Please try again.');
+    }
+  };
+
+  // Reconcile team settlement totals
+  const reconcileTeamSettlements = async () => {
+    if (!window.confirm('This will analyze all team settlement totals by comparing approved settlements with database values.\n\nContinue with analysis?')) {
+      return;
+    }
+
+    try {
+      const discrepancies = [];
+
+      // For each team, calculate the sum of approved settlements
+      for (const team of teams) {
+        const approvedSettlements = moneySettlements.filter(
+          s => s.teamId === team.id && s.status === 'approved'
+        );
+        
+        const calculatedTotal = approvedSettlements.reduce(
+          (sum, s) => sum + parseFloat(s.amount || 0), 
+          0
+        );
+        
+        const currentTotal = parseFloat(team.totalMoneySettled || 0);
+        
+        if (calculatedTotal !== currentTotal) {
+          discrepancies.push({
+            teamName: team.name,
+            teamId: team.id,
+            currentTotal,
+            calculatedTotal,
+            difference: calculatedTotal - currentTotal,
+            approvedCount: approvedSettlements.length
+          });
+        }
+      }
+
+      if (discrepancies.length === 0) {
+        alert('✅ ANALYSIS COMPLETE\n\nAll team settlement totals are correct!\nNo discrepancies found.\n\nDatabase is in sync with approved settlements.');
+        return;
+      }
+
+      // Show detailed discrepancy report
+      const totalDiscrepancy = discrepancies.reduce((sum, d) => sum + Math.abs(d.difference), 0);
+      const header = `⚠️ DISCREPANCIES FOUND\n\nFound ${discrepancies.length} team(s) with incorrect settlement totals.\nTotal discrepancy amount: ₹${totalDiscrepancy.toLocaleString()}\n\n`;
+      
+      const discrepancyDetails = discrepancies.map((d, idx) => {
+        const status = d.difference > 0 ? '📈 UNDERCOUNTED' : '📉 OVERCOUNTED';
+        return `${idx + 1}. ${d.teamName} (${d.approvedCount} approved settlements)
+   ${status}
+   Current in Database: ₹${d.currentTotal.toLocaleString()}
+   Correct Total:       ₹${d.calculatedTotal.toLocaleString()}
+   Adjustment Needed:   ${d.difference >= 0 ? '+' : ''}₹${d.difference.toLocaleString()}`;
+      }).join('\n\n');
+
+      const footer = `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n⚡ PROPOSED ACTION:\nUpdate ${discrepancies.length} team record(s) in Firestore to match approved settlement totals.\n\n❓ Do you approve these changes?`;
+
+      const confirmFix = window.confirm(header + discrepancyDetails + footer);
+
+      if (!confirmFix) {
+        alert('❌ Changes cancelled. No updates were made to the database.');
+        return;
+      }
+
+      // Apply fixes with progress tracking
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const discrepancy of discrepancies) {
+        try {
+          const teamRef = doc(db, 'teams', discrepancy.teamId);
+          await updateDoc(teamRef, {
+            totalMoneySettled: discrepancy.calculatedTotal
+          });
+          successCount++;
+        } catch (error) {
+          console.error(`Failed to update ${discrepancy.teamName}:`, error);
+          failCount++;
+        }
+      }
+
+      // Show results
+      if (failCount === 0) {
+        alert(`✅ SUCCESS!\n\nUpdated ${successCount} team settlement total(s).\n\nAll discrepancies have been resolved.\nDatabase is now in sync with approved settlements.`);
+      } else {
+        alert(`⚠️ PARTIAL SUCCESS\n\nUpdated: ${successCount} team(s)\nFailed: ${failCount} team(s)\n\nPlease check console for error details and try again.`);
+      }
+    } catch (error) {
+      console.error('Error reconciling settlements:', error);
+      alert('❌ ERROR\n\nError reconciling settlements: ' + error.message + '\n\nPlease check console for details.');
     }
   };
 
@@ -2022,25 +2122,28 @@ const addTeam = async () => {
 
       await addDoc(collection(db, 'expenses'), expenseData);
       
-      // If admin, update admin account expenses
+      // If admin, update admin account expenses using transaction
       if (currentUser.role === 'admin') {
         const adminAccountRef = doc(db, 'adminAccount', 'main');
-        const adminAccountSnap = await getDoc(adminAccountRef);
         
-        if (adminAccountSnap.exists()) {
-          const currentData = adminAccountSnap.data();
-          const newTotalExpenses = (currentData.totalExpenses || 0) + parseFloat(expenseForm.amount);
-          await updateDoc(adminAccountRef, {
-            totalExpenses: newTotalExpenses,
-            balance: (currentData.totalReceived || 0) - newTotalExpenses
-          });
-        } else {
-          await setDoc(adminAccountRef, {
-            totalReceived: 0,
-            totalExpenses: parseFloat(expenseForm.amount),
-            balance: -parseFloat(expenseForm.amount)
-          });
-        }
+        await runTransaction(db, async (transaction) => {
+          const adminAccountSnap = await transaction.get(adminAccountRef);
+          
+          if (adminAccountSnap.exists()) {
+            const currentData = adminAccountSnap.data();
+            const newTotalExpenses = (currentData.totalExpenses || 0) + parseFloat(expenseForm.amount);
+            transaction.update(adminAccountRef, {
+              totalExpenses: newTotalExpenses,
+              balance: (currentData.totalReceived || 0) - newTotalExpenses
+            });
+          } else {
+            transaction.set(adminAccountRef, {
+              totalReceived: 0,
+              totalExpenses: parseFloat(expenseForm.amount),
+              balance: -parseFloat(expenseForm.amount)
+            });
+          }
+        });
       }
       
       setExpenseForm({
@@ -4024,13 +4127,23 @@ const addTeam = async () => {
                         <p className="text-sm text-orange-700">Overview of settlements by team</p>
                       </div>
                     </div>
-                    <button
-                      onClick={() => exportTableToCSV('settlement-summary-table', 'settlement_summary')}
-                      className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
-                    >
-                      <Download className="w-4 h-4" />
-                      <span>Export CSV</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={reconcileTeamSettlements}
+                        className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                        title="Recalculate and fix settlement totals based on approved settlements"
+                      >
+                        <AlertCircle className="w-4 h-4" />
+                        <span>Fix Totals</span>
+                      </button>
+                      <button
+                        onClick={() => exportTableToCSV('settlement-summary-table', 'settlement_summary')}
+                        className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                      >
+                        <Download className="w-4 h-4" />
+                        <span>Export CSV</span>
+                      </button>
+                    </div>
                   </div>
                   {!isTeamSettlementSummaryCollapsed && (
                   <div className="overflow-x-auto">
