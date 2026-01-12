@@ -5431,8 +5431,8 @@ const addTeam = async () => {
               <>
                 {/* Inventory Summary Table */}
                 <div className="bg-white rounded-lg shadow-md overflow-hidden">
-                  <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-                    <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-gray-50 border-b">
+                    <div className="flex items-center gap-2 flex-1">
                       <button
                         onClick={() => setIsInventoryIssuedSummaryCollapsed(!isInventoryIssuedSummaryCollapsed)}
                         className="flex items-center justify-center w-8 h-8 hover:bg-gray-100 rounded transition-colors"
@@ -5448,10 +5448,17 @@ const addTeam = async () => {
                         <p className="text-sm text-gray-500">Total inventory items issued to each team</p>
                       </div>
                     </div>
+                    <button
+                      onClick={() => exportTableToCSV('inventory-issued-summary-table', 'inventory_issued_summary')}
+                      className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Export CSV</span>
+                    </button>
                   </div>
                   {!isInventoryIssuedSummaryCollapsed && (
                   <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
+                    <table id="inventory-issued-summary-table" className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Team</th>
