@@ -2968,7 +2968,9 @@ const addTeam = async () => {
     const rows = Array.from(table.querySelectorAll('tr')).map((row) =>
       Array.from(row.querySelectorAll('th, td'))
         .map((cell) => {
-          const text = cell.innerText.replace(/\s*\n\s*/g, ' ').trim();
+          // Check if cell has a data-export-value attribute (for cells with dropdowns)
+          const exportValue = cell.getAttribute('data-export-value');
+          const text = exportValue !== null ? exportValue : cell.innerText.replace(/\s*\n\s*/g, ' ').trim();
           return `"${text.replace(/"/g, '""')}"`;
         })
         .join(',')
@@ -4674,7 +4676,7 @@ const addTeam = async () => {
                                   </td>
                                   <td className="px-4 py-3 text-sm font-medium text-gray-900">{settlement.teamName}</td>
                                   <td className="px-4 py-3 text-sm text-right text-green-700 font-semibold">₹{settlement.amount.toLocaleString()}</td>
-                                  <td className="px-4 py-3 text-sm text-gray-700">
+                                  <td className="px-4 py-3 text-sm text-gray-700" data-export-value={settlement.paymentMethod}>
                                     {settlement.status === 'approved' ? (
                                       <select
                                         value={settlement.paymentMethod}
