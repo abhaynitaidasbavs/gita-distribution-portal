@@ -415,6 +415,7 @@ const GitaDistributionPortal = () => {
   // State for filters in Pending Settlement Requests
   const [settlementStatusFilter, setSettlementStatusFilter] = useState('all');
   const [settlementMethodFilter, setSettlementMethodFilter] = useState('all');
+  const [settlementTeamFilter, setSettlementTeamFilter] = useState('all');
   // State for inline editing
   const [editingCell, setEditingCell] = useState(null); // { schoolId, field, value }
   const [editingCellValue, setEditingCellValue] = useState('');
@@ -430,7 +431,7 @@ const GitaDistributionPortal = () => {
   });
   const [expenses, setExpenses] = useState([]);
   const [expenseForm, setExpenseForm] = useState({
-    amount: 0, description: '', date: new Date().toISOString().split('T')[0], category: 'Other'
+    amount: 0, description: '', date: new Date().toISOString().split('T')[0], category: 'Other', paymentMode: 'Unspecified'
   });
   const [bankSubmissions, setBankSubmissions] = useState([]);
   const [bankSubmissionForm, setBankSubmissionForm] = useState({
@@ -2093,6 +2094,41 @@ const addTeam = async () => {
     }
   };
 
+  // Update payment method for a settlement
+  const updateSettlementPaymentMethod = async (settlementId, newPaymentMethod) => {
+    try {
+      const settlementRef = doc(db, 'moneySettlements', settlementId);
+      const settlementSnap = await getDoc(settlementRef);
+      
+      if (!settlementSnap.exists()) {
+        alert('Settlement not found');
+        return false;
+      }
+
+      const settlementData = settlementSnap.data();
+      
+      // Update payment method
+      await updateDoc(settlementRef, {
+        paymentMethod: newPaymentMethod,
+        paymentMethodUpdatedAt: new Date().toISOString(),
+        paymentMethodUpdatedBy: currentUser.uid
+      });
+
+      // Update local state
+      setMoneySettlements(prev => prev.map(s => 
+        s.id === settlementId 
+          ? { ...s, paymentMethod: newPaymentMethod }
+          : s
+      ));
+
+      return true;
+    } catch (error) {
+      console.error('Error updating payment method:', error);
+      alert('Error updating payment method: ' + error.message);
+      return false;
+    }
+  };
+
   // Reconcile team settlement totals
   const reconcileTeamSettlements = async () => {
     if (!window.confirm('This will analyze all team settlement totals by comparing approved settlements with database values.\n\nContinue with analysis?')) {
@@ -2219,6 +2255,7 @@ const addTeam = async () => {
         amount: amount,
         description: expenseForm.description.trim(),
         category: expenseForm.category,
+        paymentMode: expenseForm.paymentMode || 'Unspecified',
         date: expenseForm.date,
         submittedAt: new Date().toISOString(),
         submittedBy: currentUser.uid
@@ -2254,7 +2291,8 @@ const addTeam = async () => {
         amount: 0,
         description: '',
         date: new Date().toISOString().split('T')[0],
-        category: 'Other'
+        category: 'Other',
+        paymentMode: 'Unspecified'
       });
       setShowModal(false);
       alert('Expense submitted successfully!');
@@ -4550,7 +4588,20 @@ const addTeam = async () => {
                           <option value="Cash">Cash</option>
                           <option value="Bank Transfer">Bank Transfer</option>
                           <option value="UPI">UPI</option>
-                          <option value="Cheque">Cheque</option>
+                          <option value="RazorPay">RazorPay</option>
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-gray-700">Team:</label>
+                        <select
+                          value={settlementTeamFilter}
+                          onChange={(e) => setSettlementTeamFilter(e.target.value)}
+                          className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="all">All Teams</option>
+                          {teams.map(team => (
+                            <option key={team.id} value={team.id}>{team.name}</option>
+                          ))}
                         </select>
                       </div>
                     </div>
@@ -4580,6 +4631,11 @@ const addTeam = async () => {
                             // Filter by method
                             if (settlementMethodFilter !== 'all') {
                               filteredSettlements = filteredSettlements.filter(s => s.paymentMethod === settlementMethodFilter);
+                            }
+                            
+                            // Filter by team
+                            if (settlementTeamFilter !== 'all') {
+                              filteredSettlements = filteredSettlements.filter(s => s.teamId === settlementTeamFilter);
                             }
                             
                             // Sort by date (newest first)
@@ -4618,7 +4674,27 @@ const addTeam = async () => {
                                   </td>
                                   <td className="px-4 py-3 text-sm font-medium text-gray-900">{settlement.teamName}</td>
                                   <td className="px-4 py-3 text-sm text-right text-green-700 font-semibold">₹{settlement.amount.toLocaleString()}</td>
-                                  <td className="px-4 py-3 text-sm text-gray-700">{settlement.paymentMethod}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-700">
+                                    {settlement.status === 'approved' ? (
+                                      <select
+                                        value={settlement.paymentMethod}
+                                        onChange={async (e) => {
+                                          const newMethod = e.target.value;
+                                          if (window.confirm(`Change payment method from "${settlement.paymentMethod}" to "${newMethod}"?`)) {
+                                            await updateSettlementPaymentMethod(settlement.id, newMethod);
+                                          }
+                                        }}
+                                        className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white cursor-pointer hover:border-blue-400"
+                                      >
+                                        <option value="Cash">Cash</option>
+                                        <option value="Bank Transfer">Bank Transfer</option>
+                                        <option value="UPI">UPI</option>
+                                        <option value="RazorPay">RazorPay</option>
+                                      </select>
+                                    ) : (
+                                      <span>{settlement.paymentMethod}</span>
+                                    )}
+                                  </td>
                                   <td className="px-4 py-3 text-center">
                                     <span className={`px-3 py-1 text-xs rounded-full font-medium ${
                                       settlement.status === 'approved' ? 'bg-green-100 text-green-700' : 
@@ -4751,7 +4827,7 @@ const addTeam = async () => {
                         <option value="Cash">Cash</option>
                         <option value="Bank Transfer">Bank Transfer</option>
                         <option value="UPI">UPI</option>
-                        <option value="Cheque">Cheque</option>
+                        <option value="RazorPay">RazorPay</option>
                       </select>
                     </div>
                   </div>
@@ -4829,7 +4905,8 @@ const addTeam = async () => {
                     amount: 0,
                     description: '',
                     date: new Date().toISOString().split('T')[0],
-                    category: 'Other'
+                    category: 'Other',
+                    paymentMode: 'Unspecified'
                   });
                   setShowModal(true);
                 }}
@@ -4944,12 +5021,13 @@ const addTeam = async () => {
                     </button>
                   </div>
                   <div className="overflow-x-auto">
-                    <table id="admin-expenses-table" className="w-full min-w-[600px]">
+                    <table id="admin-expenses-table" className="w-full min-w-[700px]">
                       <thead className="bg-gray-50 border-b">
                         <tr>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Description</th>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Category</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Payment Mode</th>
                           <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Amount (₹)</th>
                         </tr>
                       </thead>
@@ -4959,12 +5037,13 @@ const addTeam = async () => {
                             <td className="px-4 py-3 text-sm text-gray-600">{expense.date}</td>
                             <td className="px-4 py-3 text-sm text-gray-900">{expense.description}</td>
                             <td className="px-4 py-3 text-sm text-gray-700">{expense.category}</td>
+                            <td className="px-4 py-3 text-sm text-gray-700">{expense.paymentMode || 'Unspecified'}</td>
                             <td className="px-4 py-3 text-sm text-right text-red-700 font-semibold">₹{parseFloat(expense.amount).toLocaleString()}</td>
                           </tr>
                         ))}
                         {expenses.filter(e => e.teamId === 'admin').length === 0 && (
                           <tr>
-                            <td colSpan="4" className="px-4 py-12 text-center text-gray-500">
+                            <td colSpan="5" className="px-4 py-12 text-center text-gray-500">
                               <DollarSign className="w-12 h-12 mx-auto mb-4 opacity-50" />
                               <p>No expenses recorded</p>
                             </td>
@@ -5063,12 +5142,13 @@ const addTeam = async () => {
                     </div>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[600px]">
+                    <table className="w-full min-w-[700px]">
                       <thead className="bg-gray-50 border-b">
                         <tr>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Description</th>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Category</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Payment Mode</th>
                           <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Amount (₹)</th>
                         </tr>
                       </thead>
@@ -5078,12 +5158,13 @@ const addTeam = async () => {
                             <td className="px-4 py-3 text-sm text-gray-600">{expense.date}</td>
                             <td className="px-4 py-3 text-sm text-gray-900">{expense.description}</td>
                             <td className="px-4 py-3 text-sm text-gray-700">{expense.category}</td>
+                            <td className="px-4 py-3 text-sm text-gray-700">{expense.paymentMode || 'Unspecified'}</td>
                             <td className="px-4 py-3 text-sm text-right text-red-700 font-semibold">₹{parseFloat(expense.amount).toLocaleString()}</td>
                           </tr>
                         ))}
                         {expenses.filter(e => e.teamId === currentUser.teamId).length === 0 && (
                           <tr>
-                            <td colSpan="4" className="px-4 py-12 text-center text-gray-500">
+                            <td colSpan="5" className="px-4 py-12 text-center text-gray-500">
                               <DollarSign className="w-12 h-12 mx-auto mb-4 opacity-50" />
                               <p>No expenses recorded</p>
                             </td>
@@ -7392,6 +7473,20 @@ const addTeam = async () => {
                       <option value="Accommodation">Accommodation</option>
                       <option value="Materials">Materials</option>
                       <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Payment Mode</label>
+                    <select
+                      value={expenseForm.paymentMode}
+                      onChange={(e) => setExpenseForm({...expenseForm, paymentMode: e.target.value})}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                    >
+                      <option value="Unspecified">Unspecified</option>
+                      <option value="Cash">Cash</option>
+                      <option value="UPI">UPI</option>
+                      <option value="Bank Transfer">Bank Transfer</option>
                     </select>
                   </div>
                   
