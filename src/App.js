@@ -299,6 +299,24 @@ const GitaDistributionPortal = () => {
     return () => unsubscribeScoreSheets();
   }, [isLoggedIn]);
 
+  // Fetch Shastra Daan Issuances
+  const [shastraDaanIssuances, setShastraDaanIssuances] = useState([]);
+  useEffect(() => {
+    if (!isLoggedIn) return;
+
+    const unsubscribe = onSnapshot(
+      collection(db, 'shastraDaanIssuances'),
+      (snapshot) => {
+        const data = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setShastraDaanIssuances(data);
+      }
+    );
+    return () => unsubscribe();
+  }, [isLoggedIn]);
+
   // Fetch master inventory in real-time (admin only)
   useEffect(() => {
     if (!isLoggedIn || !currentUser || currentUser.role !== 'admin') return;
@@ -429,6 +447,15 @@ const GitaDistributionPortal = () => {
   const [settlementForm, setSettlementForm] = useState({
     amount: 0, paymentMethod: 'Cash', date: new Date().toISOString().split('T')[0], notes: '', teamId: ''
   });
+  const [shastraDaanForm, setShastraDaanForm] = useState({
+    teamId: '',
+    purpose: 'Complimentary',
+    gitaTelugu: 0,
+    gitaEnglish: 0,
+    date: new Date().toISOString().split('T')[0]
+  });
+  const [shastraFilterTeam, setShastraFilterTeam] = useState('');
+  const [shastraFilterPurpose, setShastraFilterPurpose] = useState('');
   const [expenses, setExpenses] = useState([]);
   const [expenseForm, setExpenseForm] = useState({
     amount: 0, description: '', date: new Date().toISOString().split('T')[0], category: 'Other', paymentMode: 'Unspecified'
@@ -2662,6 +2689,119 @@ const GitaDistributionPortal = () => {
     }
   };
 
+  // Submit Shastra Daan Issuance
+  const submitShastraDaanIssuance = async () => {
+    try {
+      if (!shastraDaanForm.teamId) {
+        alert('Please select a team');
+        return;
+      }
+      if (!shastraDaanForm.date) {
+        alert('Please select a date');
+        return;
+      }
+      const gitaTelugu = parseInt(shastraDaanForm.gitaTelugu) || 0;
+      const gitaEnglish = parseInt(shastraDaanForm.gitaEnglish) || 0;
+
+      if (gitaTelugu === 0 && gitaEnglish === 0) {
+        alert('Please enter at least one book count');
+        return;
+      }
+
+      // Check Inventory
+      const team = teams.find(t => t.id === shastraDaanForm.teamId);
+      if (!team) {
+        alert('Team not found');
+        return;
+      }
+      const inventory = team.inventory || {};
+
+      if ((inventory.gitaTelugu || 0) < gitaTelugu) {
+        if (!window.confirm(`Insufficient Telugu Gita inventory (Available: ${inventory.gitaTelugu}). Proceed anyway?`)) return;
+      }
+      if ((inventory.gitaEnglish || 0) < gitaEnglish) {
+        if (!window.confirm(`Insufficient English Gita inventory (Available: ${inventory.gitaEnglish}). Proceed anyway?`)) return;
+      }
+
+      await runTransaction(db, async (transaction) => {
+        const teamRef = doc(db, 'teams', shastraDaanForm.teamId);
+        const teamDoc = await transaction.get(teamRef);
+        if (!teamDoc.exists()) throw new Error('Team does not exist');
+
+        const currentInv = teamDoc.data().inventory || {};
+        const newInv = {
+          ...currentInv,
+          gitaTelugu: (currentInv.gitaTelugu || 0) - gitaTelugu,
+          gitaEnglish: (currentInv.gitaEnglish || 0) - gitaEnglish
+        };
+
+        transaction.update(teamRef, { inventory: newInv });
+
+        const issuanceRef = doc(collection(db, 'shastraDaanIssuances'));
+        transaction.set(issuanceRef, {
+          ...shastraDaanForm,
+          gitaTelugu,
+          gitaEnglish,
+          teamName: team.name,
+          createdAt: new Date().toISOString(),
+          createdBy: currentUser.uid
+        });
+      });
+
+      alert('Shastra Daan issuance recorded successfully');
+      setShowModal(false);
+      setShastraDaanForm({
+        teamId: '',
+        purpose: 'Complimentary',
+        gitaTelugu: 0,
+        gitaEnglish: 0,
+        date: new Date().toISOString().split('T')[0]
+      });
+
+    } catch (error) {
+      console.error('Error submitting Shastra Daan:', error);
+      alert('Error: ' + error.message);
+    }
+  };
+
+  // Update Shastra Daan Issuance
+  const updateShastraDaanIssuance = async (id, updatedData) => {
+    try {
+      await runTransaction(db, async (transaction) => {
+        const issuanceRef = doc(db, 'shastraDaanIssuances', id);
+        const issuanceDoc = await transaction.get(issuanceRef);
+        if (!issuanceDoc.exists()) throw new Error('Issuance not found');
+
+        const oldData = issuanceDoc.data();
+        const teamId = oldData.teamId;
+        // Note: If teamId is changed, this logic needs to be more complex (refund old team, deduct new team)
+        // For now assuming teamId is not editable or handled separately.
+
+        const teamRef = doc(db, 'teams', teamId);
+        const teamDoc = await transaction.get(teamRef);
+        if (!teamDoc.exists()) throw new Error('Team not found');
+
+        const currentInv = teamDoc.data().inventory || {};
+
+        const diffTelugu = (parseInt(updatedData.gitaTelugu) || 0) - (oldData.gitaTelugu || 0);
+        const diffEnglish = (parseInt(updatedData.gitaEnglish) || 0) - (oldData.gitaEnglish || 0);
+
+        const newInv = {
+          ...currentInv,
+          gitaTelugu: (currentInv.gitaTelugu || 0) - diffTelugu,
+          gitaEnglish: (currentInv.gitaEnglish || 0) - diffEnglish
+        };
+
+        transaction.update(teamRef, { inventory: newInv });
+        transaction.update(issuanceRef, updatedData);
+      });
+      alert('Updated successfully');
+    } catch (error) {
+      console.error(error);
+      alert('Update failed: ' + error.message);
+    }
+  };
+
   // Toggle score sheet expansion
   const toggleScoreSheet = (scoreSheetId) => {
     const newExpanded = new Set(expandedScoreSheets);
@@ -3139,6 +3279,12 @@ const GitaDistributionPortal = () => {
                   >
                     Master Inventory
                   </button>
+                  <button
+                    onClick={() => setActiveView('shastraDaan')}
+                    className={`px-6 py-3 font-medium ${activeView === 'shastraDaan' ? 'text-orange-600 border-b-2 border-orange-600' : 'text-gray-600 hover:text-orange-600'}`}
+                  >
+                    Shastra Daan/Complimentary
+                  </button>
                 </>
               )}
               {currentUser.role === 'team' && (
@@ -3166,6 +3312,12 @@ const GitaDistributionPortal = () => {
                     className={`px-6 py-3 font-medium ${activeView === 'scores' ? 'text-orange-600 border-b-2 border-orange-600' : 'text-gray-600 hover:text-orange-600'}`}
                   >
                     Scores
+                  </button>
+                  <button
+                    onClick={() => setActiveView('shastraDaan')}
+                    className={`px-6 py-3 font-medium ${activeView === 'shastraDaan' ? 'text-orange-600 border-b-2 border-orange-600' : 'text-gray-600 hover:text-orange-600'}`}
+                  >
+                    Shastra Daan/Complimentary
                   </button>
                 </>
               )}
@@ -3397,14 +3549,14 @@ const GitaDistributionPortal = () => {
                         key={activity}
                         onClick={() => setSelectedActivityTab(activity)}
                         className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${selectedActivityTab === activity
-                            ? 'border-orange-600 text-orange-600'
-                            : 'border-transparent text-gray-600 hover:text-orange-600 hover:border-gray-300'
+                          ? 'border-orange-600 text-orange-600'
+                          : 'border-transparent text-gray-600 hover:text-orange-600 hover:border-gray-300'
                           }`}
                       >
                         {displayName}
                         <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${selectedActivityTab === activity
-                            ? 'bg-orange-100 text-orange-700'
-                            : 'bg-gray-100 text-gray-700'
+                          ? 'bg-orange-100 text-orange-700'
+                          : 'bg-gray-100 text-gray-700'
                           }`}>
                           {getActivityCount(activity)}
                         </span>
@@ -3564,13 +3716,13 @@ const GitaDistributionPortal = () => {
                         </td>
                         <td className="px-4 py-3 border-r border-black">
                           <span className={`px-2 py-1 text-xs rounded-full ${(() => {
-                              const activity = getSchoolActivity(school);
-                              if (activity === 'Announced' || activity === 'Settlement Closed') return 'bg-green-100 text-green-700';
-                              if (activity === 'Declined') return 'bg-red-100 text-red-700';
-                              if (activity === 'To Close' || activity === 'Announcement Pending') return 'bg-yellow-100 text-yellow-700';
-                              if (activity === 'Visited') return 'bg-blue-100 text-blue-700';
-                              return 'bg-gray-100 text-gray-700';
-                            })()
+                            const activity = getSchoolActivity(school);
+                            if (activity === 'Announced' || activity === 'Settlement Closed') return 'bg-green-100 text-green-700';
+                            if (activity === 'Declined') return 'bg-red-100 text-red-700';
+                            if (activity === 'To Close' || activity === 'Announcement Pending') return 'bg-yellow-100 text-yellow-700';
+                            if (activity === 'Visited') return 'bg-blue-100 text-blue-700';
+                            return 'bg-gray-100 text-gray-700';
+                          })()
                             }`}>
                             {getSchoolActivity(school)}
                           </span>
@@ -4400,8 +4552,8 @@ const GitaDistributionPortal = () => {
                         <button
                           onClick={() => setInventoryDateFilter('all')}
                           className={`px-3 py-1.5 text-sm rounded-md transition-colors ${inventoryDateFilter === 'all'
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-white text-blue-700 border border-blue-300 hover:bg-blue-100'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-white text-blue-700 border border-blue-300 hover:bg-blue-100'
                             }`}
                         >
                           All Time
@@ -4409,8 +4561,8 @@ const GitaDistributionPortal = () => {
                         <button
                           onClick={() => setInventoryDateFilter('recent')}
                           className={`px-3 py-1.5 text-sm rounded-md transition-colors ${inventoryDateFilter === 'recent'
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-white text-blue-700 border border-blue-300 hover:bg-blue-100'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-white text-blue-700 border border-blue-300 hover:bg-blue-100'
                             }`}
                         >
                           Recent (Last 7 Days)
@@ -4418,8 +4570,8 @@ const GitaDistributionPortal = () => {
                         <button
                           onClick={() => setInventoryDateFilter('custom')}
                           className={`px-3 py-1.5 text-sm rounded-md transition-colors ${inventoryDateFilter === 'custom'
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-white text-blue-700 border border-blue-300 hover:bg-blue-100'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-white text-blue-700 border border-blue-300 hover:bg-blue-100'
                             }`}
                         >
                           Custom Range
@@ -4694,8 +4846,8 @@ const GitaDistributionPortal = () => {
                                       </td>
                                       <td className="px-4 py-3 text-center">
                                         <span className={`px-3 py-1 text-xs rounded-full font-medium ${settlement.status === 'approved' ? 'bg-green-100 text-green-700' :
-                                            settlement.status === 'declined' ? 'bg-red-100 text-red-700' :
-                                              'bg-yellow-100 text-yellow-700'
+                                          settlement.status === 'declined' ? 'bg-red-100 text-red-700' :
+                                            'bg-yellow-100 text-yellow-700'
                                           }`}>
                                           {settlement.status}
                                         </span>
@@ -4869,8 +5021,8 @@ const GitaDistributionPortal = () => {
                                 <p className="text-sm text-gray-600">{settlement.paymentMethod} • {settlement.date}</p>
                               </div>
                               <span className={`px-3 py-1 text-xs rounded-full ${settlement.status === 'approved' ? 'bg-green-100 text-green-700' :
-                                  settlement.status === 'declined' ? 'bg-red-100 text-red-700' :
-                                    'bg-yellow-100 text-yellow-700'
+                                settlement.status === 'declined' ? 'bg-red-100 text-red-700' :
+                                  'bg-yellow-100 text-yellow-700'
                                 }`}>
                                 {settlement.status}
                               </span>
@@ -5099,8 +5251,8 @@ const GitaDistributionPortal = () => {
                                 <td className="px-4 py-3 text-sm text-green-700 font-semibold">₹{parseFloat(settlement.amount).toLocaleString()}</td>
                                 <td className="px-4 py-3 text-center">
                                   <span className={`px-3 py-1 text-xs rounded-full ${settlement.status === 'approved' ? 'bg-green-100 text-green-700' :
-                                      settlement.status === 'declined' ? 'bg-red-100 text-red-700' :
-                                        'bg-yellow-100 text-yellow-700'
+                                    settlement.status === 'declined' ? 'bg-red-100 text-red-700' :
+                                      'bg-yellow-100 text-yellow-700'
                                     }`}>
                                     {settlement.status}
                                   </span>
@@ -6385,8 +6537,8 @@ const GitaDistributionPortal = () => {
                             </td>
                             <td className="px-4 py-3 text-sm">
                               <span className={`px-2 py-1 rounded-full text-xs font-medium ${item.type === 'added'
-                                  ? 'bg-green-100 text-green-700'
-                                  : 'bg-orange-100 text-orange-700'
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-orange-100 text-orange-700'
                                 }`}>
                                 {item.type === 'added' ? 'Added' : 'Issued'}
                               </span>
@@ -6410,6 +6562,206 @@ const GitaDistributionPortal = () => {
                 </table>
               </div>
             </div>
+          </div>
+        )}
+        {/* Shastra Daan View */}
+        {activeView === 'shastraDaan' && (
+          <div className="space-y-6">
+            {currentUser.role === 'admin' && (
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-800">Shastra Daan & Complimentary Issuances</h2>
+                <button
+                  onClick={() => {
+                    setModalType('issueShastraDaan');
+                    setShowModal(true);
+                  }}
+                  className="flex items-center space-x-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
+                >
+                  <BookOpen className="w-4 h-4" />
+                  <span>Issue Shastra Daan/Complimentary</span>
+                </button>
+              </div>
+            )}
+
+            {/* Aggregate Table */}
+            <div className="bg-white rounded-lg shadow-md overflow-hidden">
+              <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-800">Issuance Summary</h3>
+              </div>
+              {/* Filters for Aggregate Table */}
+              <div className="bg-gray-50 border-b p-4 grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Filter by Team</label>
+                  <select
+                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+                    value={shastraFilterTeam}
+                    onChange={e => setShastraFilterTeam(e.target.value)}
+                  >
+                    <option value="">All Teams</option>
+                    {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Filter by Purpose</label>
+                  <select
+                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+                    value={shastraFilterPurpose}
+                    onChange={e => setShastraFilterPurpose(e.target.value)}
+                  >
+                    <option value="">All Purposes</option>
+                    <option value="Complimentary">Complimentary</option>
+                    <option value="Shastra_daan">Shastra Daan</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left text-gray-500">
+                  <thead className="text-xs text-gray-700 uppercase bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3">Team</th>
+                      <th className="px-6 py-3">Purpose</th>
+                      <th className="px-6 py-3 text-right">Gita Telugu</th>
+                      <th className="px-6 py-3 text-right">Gita English</th>
+                      <th className="px-6 py-3 text-right">Total</th>
+                      {currentUser.role === 'admin' && <th className="px-6 py-3 text-center">Actions</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      let filtered = shastraDaanIssuances;
+                      // Team View: Filter by team
+                      if (currentUser.role === 'team') {
+                        filtered = filtered.filter(i => i.teamId === currentUser.teamId);
+                      } else {
+                        // Admin Filters
+                        if (shastraFilterTeam) {
+                          filtered = filtered.filter(i => i.teamId === shastraFilterTeam);
+                        }
+                      }
+
+                      if (shastraFilterPurpose) {
+                        filtered = filtered.filter(i => i.purpose === shastraFilterPurpose);
+                      }
+
+                      const agg = {};
+                      filtered.forEach(item => {
+                        const key = `${item.teamId}-${item.purpose}`;
+                        if (!agg[key]) {
+                          agg[key] = {
+                            teamId: item.teamId,
+                            teamName: item.teamName,
+                            purpose: item.purpose,
+                            gitaTelugu: 0,
+                            gitaEnglish: 0,
+                            count: 0
+                          };
+                        }
+                        agg[key].gitaTelugu += (parseInt(item.gitaTelugu) || 0);
+                        agg[key].gitaEnglish += (parseInt(item.gitaEnglish) || 0);
+                        agg[key].count++;
+                      });
+
+                      const rows = Object.values(agg);
+                      const totalTelugu = rows.reduce((s, r) => s + r.gitaTelugu, 0);
+                      const totalEnglish = rows.reduce((s, r) => s + r.gitaEnglish, 0);
+
+                      if (rows.length === 0) {
+                        return <tr><td colSpan="6" className="px-6 py-4 text-center">No issuances found matching filters</td></tr>;
+                      }
+
+                      return (
+                        <>
+                          {rows.map((row, idx) => (
+                            <tr key={idx} className="bg-white border-b hover:bg-gray-50">
+                              <td className="px-6 py-4 font-medium text-gray-900">{row.teamName}</td>
+                              <td className="px-6 py-4">
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${row.purpose === 'Complimentary' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
+                                  }`}>
+                                  {row.purpose}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-right">{row.gitaTelugu}</td>
+                              <td className="px-6 py-4 text-right">{row.gitaEnglish}</td>
+                              <td className="px-6 py-4 text-right font-semibold">{row.gitaTelugu + row.gitaEnglish}</td>
+                              {currentUser.role === 'admin' && (
+                                <td className="px-6 py-4 text-center">
+                                  <button
+                                    className="text-blue-600 hover:text-blue-900"
+                                    onClick={() => alert('Editing aggregated data is not directly supported. Please edit individual entries in the detailed history below.')}
+                                  >
+                                    Info
+                                  </button>
+                                </td>
+                              )}
+                            </tr>
+                          ))}
+                          <tr className="bg-gray-100 font-bold text-gray-900">
+                            <td colSpan="2" className="px-6 py-4 text-right">Totals:</td>
+                            <td className="px-6 py-4 text-right">{totalTelugu}</td>
+                            <td className="px-6 py-4 text-right">{totalEnglish}</td>
+                            <td className="px-6 py-4 text-right">{totalTelugu + totalEnglish}</td>
+                            {currentUser.role === 'admin' && <td></td>}
+                          </tr>
+                        </>
+                      );
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Detailed History (Admin Only) */}
+            {currentUser.role === 'admin' && (
+              <div className="bg-white rounded-lg shadow-md overflow-hidden mt-8">
+                <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-800">Detailed Issuance History (Editable)</h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-center">
+                    <thead className="bg-gray-50 text-gray-700">
+                      <tr>
+                        <th className="px-4 py-2">Date</th>
+                        <th className="px-4 py-2">Team</th>
+                        <th className="px-4 py-2">Purpose</th>
+                        <th className="px-4 py-2">Telugu</th>
+                        <th className="px-4 py-2">English</th>
+                        <th className="px-4 py-2">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {shastraDaanIssuances.slice().sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)).map(item => (
+                        <tr key={item.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-2">{item.date}</td>
+                          <td className="px-4 py-2">{item.teamName}</td>
+                          <td className="px-4 py-2">{item.purpose}</td>
+                          <td className="px-4 py-2">{item.gitaTelugu}</td>
+                          <td className="px-4 py-2">{item.gitaEnglish}</td>
+                          <td className="px-4 py-2">
+                            <button
+                              onClick={() => {
+                                const newTelugu = prompt("Enter new Telugu count:", item.gitaTelugu);
+                                const newEnglish = prompt("Enter new English count:", item.gitaEnglish);
+                                if (newTelugu !== null && newEnglish !== null) {
+                                  updateShastraDaanIssuance(item.id, {
+                                    ...item,
+                                    gitaTelugu: parseInt(newTelugu) || 0,
+                                    gitaEnglish: parseInt(newEnglish) || 0
+                                  });
+                                }
+                              }}
+                              className="text-orange-600 hover:text-orange-800"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>
@@ -7836,6 +8188,98 @@ const GitaDistributionPortal = () => {
                       className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                     >
                       Add to Master Inventory
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Issue Shastra Daan Modal */}
+              {modalType === 'issueShastraDaan' && (
+                <div className="space-y-4">
+                  {/* Select Team - Admin Only if needed basically this modal is for Admin mostly? Requirement says 'Admins should be able to issue' */}
+
+                  {currentUser.role === 'admin' ? (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Team *</label>
+                      <select
+                        value={shastraDaanForm.teamId}
+                        onChange={(e) => setShastraDaanForm({ ...shastraDaanForm, teamId: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                        required
+                      >
+                        <option value="">Select Team</option>
+                        {teams.map(team => (
+                          <option key={team.id} value={team.id}>{team.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    // Just in case a team access this (should not happen based on nav), but safe to handle
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Team</label>
+                      <input type="text" value={currentUser.name} disabled className="w-full px-4 py-2 bg-gray-100 border border-gray-300 rounded-lg" />
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Purpose *</label>
+                    <select
+                      value={shastraDaanForm.purpose}
+                      onChange={(e) => setShastraDaanForm({ ...shastraDaanForm, purpose: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      required
+                    >
+                      <option value="Complimentary">Complimentary</option>
+                      <option value="Shastra_daan">Shastra Daan</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Issue Date *</label>
+                    <input
+                      type="date"
+                      value={shastraDaanForm.date}
+                      onChange={(e) => setShastraDaanForm({ ...shastraDaanForm, date: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Gita Telugu</label>
+                      <input
+                        type="number"
+                        value={shastraDaanForm.gitaTelugu}
+                        onChange={(e) => setShastraDaanForm({ ...shastraDaanForm, gitaTelugu: parseInt(e.target.value) || 0 })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                        min="0"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Gita English</label>
+                      <input
+                        type="number"
+                        value={shastraDaanForm.gitaEnglish}
+                        onChange={(e) => setShastraDaanForm({ ...shastraDaanForm, gitaEnglish: parseInt(e.target.value) || 0 })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                        min="0"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end space-x-3 pt-4">
+                    <button
+                      onClick={() => setShowModal(false)}
+                      className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={submitShastraDaanIssuance}
+                      className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+                    >
+                      Issue
                     </button>
                   </div>
                 </div>
