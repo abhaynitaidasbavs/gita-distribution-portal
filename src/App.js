@@ -25,7 +25,7 @@ import {
   createUserWithEmailAndPassword
 } from 'firebase/auth';
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Download, Users, BookOpen, DollarSign, Package, Bell, Edit2, Trash2, Eye, Filter, X, Check, AlertCircle, LogOut, Save, ChevronDown, ChevronUp, Trophy, MoreVertical, TrendingUp, TrendingDown, Clock, Calendar, Info } from 'lucide-react';
+import { Search, Plus, Download, Users, BookOpen, DollarSign, Package, Bell, Edit2, Trash2, Eye, Filter, X, Check, AlertCircle, LogOut, Save, ChevronDown, ChevronUp, Trophy, MoreVertical, TrendingUp, TrendingDown, Clock, Calendar, Info, Settings } from 'lucide-react';
 
 // Flag to enable/disable inline editing features
 const ENABLE_INLINE_EDIT = false;
@@ -410,6 +410,36 @@ const GitaDistributionPortal = () => {
 
   // UI State
   const [activeView, setActiveView] = useState('dashboard');
+  const [schoolsViewMode, setSchoolsViewMode] = useState('detail'); // 'detail' | 'custom'
+  const [customSchoolColumns, setCustomSchoolColumns] = useState(() => {
+    try {
+      const saved = localStorage.getItem('customSchoolColumns');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Failed to load customSchoolColumns from localStorage', e);
+    }
+    return [
+      'team',
+      'area',
+      'school',
+      'activity',
+      'principal',
+      'coordinator',
+      'date',
+      'comments',
+      'teluguDistr',
+      'englishDistr',
+      'teluguIssued',
+      'englishIssued',
+      'teluguBack',
+      'englishBack',
+      'money',
+      'difference'
+    ];
+  });
   const [selectedTeam, setSelectedTeam] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState({ start: '', end: '' });
@@ -3575,6 +3605,63 @@ const GitaDistributionPortal = () => {
                   <p className="text-sm text-gray-500">Filtered list of all schools</p>
                 </div>
                 <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-1 border rounded-lg overflow-hidden bg-white">
+                    <button
+                      onClick={() => setSchoolsViewMode('detail')}
+                      className={`px-3 py-1 text-xs font-medium ${schoolsViewMode === 'detail' ? 'bg-orange-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      Detail View
+                    </button>
+                    <button
+                      onClick={() => setSchoolsViewMode('custom')}
+                      className={`px-3 py-1 text-xs font-medium ${schoolsViewMode === 'custom' ? 'bg-orange-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      Custom View
+                    </button>
+                    <button
+                      onClick={() => {
+                        const allColumns = [
+                          'team',
+                          'area',
+                          'school',
+                          'activity',
+                          'principal',
+                          'coordinator',
+                          'date',
+                          'comments',
+                          'teluguDistr',
+                          'englishDistr',
+                          'teluguIssued',
+                          'englishIssued',
+                          'teluguBack',
+                          'englishBack',
+                          'money',
+                          'difference'
+                        ];
+                        const next = window.prompt(
+                          'Select columns to show in Custom View (comma separated):\n' +
+                          'team, area, school, activity, principal, coordinator, date, comments, teluguDistr, englishDistr, teluguIssued, englishIssued, teluguBack, englishBack, money, difference',
+                          customSchoolColumns.join(', ')
+                        );
+                        if (!next) return;
+                        const selected = next
+                          .split(',')
+                          .map(s => s.trim())
+                          .filter(v => allColumns.includes(v));
+                        if (selected.length === 0) return;
+                        setCustomSchoolColumns(selected);
+                        try {
+                          localStorage.setItem('customSchoolColumns', JSON.stringify(selected));
+                        } catch (e) {
+                          console.warn('Failed to save customSchoolColumns', e);
+                        }
+                      }}
+                      className="px-2 py-1 border-l text-gray-600 hover:bg-gray-100 flex items-center justify-center"
+                      title="Configure custom view columns"
+                    >
+                      <Settings className="w-4 h-4" />
+                    </button>
+                  </div>
                   <button
                     onClick={() => {
                       setModalType('school');
@@ -3623,409 +3710,204 @@ const GitaDistributionPortal = () => {
                 <table id="schools-table" className="w-full min-w-[700px]">
                   <thead className="bg-gray-50 border-b border-black">
                     <tr>
-                      {currentUser.role === 'admin' && <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-black">Team</th>}
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-black">Area</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-black">School</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-black">Activity</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-black">Principal Details</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-black">Coordinator Details</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-black">Announcement Date</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-black">Comments</th>
-                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-r border-black">Telugu Sets Distr.</th>
-                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-r border-black">English Sets Distr.</th>
-                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-r border-black">Telugu Sets Issued</th>
-                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-r border-black">English Sets Issued</th>
-                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-r border-black">Telugu Sets Taken Back</th>
-                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-r border-black">English Sets Taken Back</th>
-                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-r border-black">Money</th>
-                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-r border-black">Difference</th>
-                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Actions</th>
+                      {currentUser.role === 'admin' && (schoolsViewMode === 'detail' || customSchoolColumns.includes('team')) && (
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-black">Team</th>
+                      )}
+                      {(schoolsViewMode === 'detail' || customSchoolColumns.includes('area')) && (
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-black">Area</th>
+                      )}
+                      {(schoolsViewMode === 'detail' || customSchoolColumns.includes('school')) && (
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-black">School</th>
+                      )}
+                      {(schoolsViewMode === 'detail' || customSchoolColumns.includes('activity')) && (
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-black">Activity</th>
+                      )}
+                      {(schoolsViewMode === 'detail' || customSchoolColumns.includes('principal')) && (
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-black">Principal Details</th>
+                      )}
+                      {(schoolsViewMode === 'detail' || customSchoolColumns.includes('coordinator')) && (
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-black">Coordinator Details</th>
+                      )}
+                      {(schoolsViewMode === 'detail' || customSchoolColumns.includes('date')) && (
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-black">Announcement Date</th>
+                      )}
+                      {(schoolsViewMode === 'detail' || customSchoolColumns.includes('comments')) && (
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-black">Comments</th>
+                      )}
+                      {(schoolsViewMode === 'detail' || customSchoolColumns.includes('teluguDistr')) && (
+                        <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-r border-black">Telugu Sets Distr.</th>
+                      )}
+                      {(schoolsViewMode === 'detail' || customSchoolColumns.includes('englishDistr')) && (
+                        <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-r border-black">English Sets Distr.</th>
+                      )}
+                      {(schoolsViewMode === 'detail' || customSchoolColumns.includes('teluguIssued')) && (
+                        <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-r border-black">Telugu Sets Issued</th>
+                      )}
+                      {(schoolsViewMode === 'detail' || customSchoolColumns.includes('englishIssued')) && (
+                        <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-r border-black">English Sets Issued</th>
+                      )}
+                      {(schoolsViewMode === 'detail' || customSchoolColumns.includes('teluguBack')) && (
+                        <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-r border-black">Telugu Sets Taken Back</th>
+                      )}
+                      {(schoolsViewMode === 'detail' || customSchoolColumns.includes('englishBack')) && (
+                        <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-r border-black">English Sets Taken Back</th>
+                      )}
+                      {(schoolsViewMode === 'detail' || customSchoolColumns.includes('money')) && (
+                        <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-r border-black">Money</th>
+                      )}
+                      {(schoolsViewMode === 'detail' || customSchoolColumns.includes('difference')) && (
+                        <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 border-r border-black">Difference</th>
+                      )}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-black">
                     {getFilteredSchools().map(school => (
-                      <tr key={school.id} className="hover:bg-gray-50">
-                        {currentUser.role === 'admin' && (
+                      <tr key={school.id} className="hover:bg-gray-50 align-top">
+                        {currentUser.role === 'admin' && (schoolsViewMode === 'detail' || customSchoolColumns.includes('team')) && (
                           <td className="px-4 py-3 text-sm text-gray-900 border-r border-black">
                             {teams.find(t => t.id === school.teamId)?.name}
                           </td>
                         )}
-                        <td
-                          className="px-4 py-3 text-sm text-gray-900 border-r border-black cursor-pointer hover:bg-blue-50 transition-colors relative group"
-                          onClick={() => startInlineEdit(school.id, 'areaName', school.areaName)}
-                        >
-                          {editingCell?.schoolId === school.id && editingCell?.field === 'areaName' ? (
-                            <div className="flex items-center gap-1">
-                              <input
-                                type="text"
-                                value={editingCellValue}
-                                onChange={(e) => setEditingCellValue(e.target.value)}
-                                onKeyDown={handleInlineEditKeyPress}
-                                onBlur={saveInlineEdit}
-                                autoFocus
-                                className="flex-1 px-2 py-1 border-2 border-blue-500 rounded focus:outline-none"
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                              <button onClick={saveInlineEdit} className="p-1 text-green-600 hover:bg-green-100 rounded" title="Save">
-                                <Check className="w-3 h-3" />
-                              </button>
-                              <button onClick={cancelInlineEdit} className="p-1 text-red-600 hover:bg-red-100 rounded" title="Cancel">
-                                <X className="w-3 h-3" />
-                              </button>
+                        {(schoolsViewMode === 'detail' || customSchoolColumns.includes('area')) && (
+                          <td className="px-4 py-3 text-sm text-gray-900 border-r border-black">
+                            {school.areaName}
+                          </td>
+                        )}
+                        {(schoolsViewMode === 'detail' || customSchoolColumns.includes('school')) && (
+                          <td className="px-4 py-3 text-sm text-gray-900 border-r border-black">
+                            <div className="flex flex-col space-y-1">
+                              <div className="font-medium text-gray-900">{school.schoolName}</div>
+                              <div className="flex flex-wrap items-center gap-1">
+                                <button
+                                  onClick={() => {
+                                    setEditingItem(school);
+                                    setUndoHistory([]);
+                                    setCanUndo(false);
+                                    const formData = {
+                                      ...school,
+                                      activity: getSchoolActivity(school),
+                                      contact_person_1_name: school.contact_person_1_name || school.contactPerson || '',
+                                      contact_person_1_phone: school.contact_person_1_phone || school.contactNumber || '',
+                                      contact_person_2_name: school.contact_person_2_name || '',
+                                      contact_person_2_phone: school.contact_person_2_phone || '',
+                                      contact_person_3_name: school.contact_person_3_name || '',
+                                      contact_person_3_phone: school.contact_person_3_phone || ''
+                                    };
+                                    setSchoolForm(formData);
+                                    setModalType('school');
+                                    setShowModal(true);
+                                  }}
+                                  className="px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setEditingItem(school);
+                                    setModalType('viewSchool');
+                                    setShowModal(true);
+                                  }}
+                                  className="px-2 py-1 text-xs text-green-600 hover:bg-green-50 rounded"
+                                >
+                                  View
+                                </button>
+                                <button
+                                  onClick={() => deleteSchool(school.id)}
+                                  className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded"
+                                >
+                                  Delete
+                                </button>
+                              </div>
                             </div>
-                          ) : (
-                            <>
-                              {school.areaName}
-                              <span className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50">
-                                <Edit2 className="w-3 h-3 text-blue-600" />
-                              </span>
-                            </>
-                          )}
-                        </td>
-                        <td
-                          className="px-4 py-3 text-sm text-gray-900 border-r border-black cursor-pointer hover:bg-blue-50 transition-colors relative group"
-                          onClick={() => startInlineEdit(school.id, 'schoolName', school.schoolName)}
-                        >
-                          {editingCell?.schoolId === school.id && editingCell?.field === 'schoolName' ? (
-                            <div className="flex items-center gap-1">
-                              <input
-                                type="text"
-                                value={editingCellValue}
-                                onChange={(e) => setEditingCellValue(e.target.value)}
-                                onKeyDown={handleInlineEditKeyPress}
-                                onBlur={saveInlineEdit}
-                                autoFocus
-                                className="flex-1 px-2 py-1 border-2 border-blue-500 rounded focus:outline-none"
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                              <button onClick={saveInlineEdit} className="p-1 text-green-600 hover:bg-green-100 rounded" title="Save">
-                                <Check className="w-3 h-3" />
-                              </button>
-                              <button onClick={cancelInlineEdit} className="p-1 text-red-600 hover:bg-red-100 rounded" title="Cancel">
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                          ) : (
-                            <>
-                              {school.schoolName}
-                              <span className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50">
-                                <Edit2 className="w-3 h-3 text-blue-600" />
-                              </span>
-                            </>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 border-r border-black">
-                          <span className={`px-2 py-1 text-xs rounded-full ${(() => {
-                            const activity = getSchoolActivity(school);
-                            if (activity === 'Announced' || activity === 'Settlement Closed') return 'bg-green-100 text-green-700';
-                            if (activity === 'Declined') return 'bg-red-100 text-red-700';
-                            if (activity === 'To Close' || activity === 'Announcement Pending') return 'bg-yellow-100 text-yellow-700';
-                            if (activity === 'Visited') return 'bg-blue-100 text-blue-700';
-                            return 'bg-gray-100 text-gray-700';
-                          })()
-                            }`}>
-                            {getSchoolActivity(school)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-700 border-r border-black">
-                          {school.contact_person_1_name || school.contactPerson ? (
-                            <div>
-                              <div className="font-medium">{school.contact_person_1_name || school.contactPerson}</div>
-                              <div className="text-xs text-gray-500">{school.contact_person_1_phone || school.contactNumber || ''}</div>
-                            </div>
-                          ) : '-'}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-700 border-r border-black">
-                          {school.contact_person_2_name ? (
-                            <div>
-                              <div className="font-medium">{school.contact_person_2_name}</div>
-                              <div className="text-xs text-gray-500">{school.contact_person_2_phone || ''}</div>
-                            </div>
-                          ) : '-'}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600 border-r border-black">{school.date}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700 border-r border-black">
-                          {school.notes?.trim() ? school.notes : '-'}
-                        </td>
-                        <td
-                          className="px-4 py-3 text-sm text-right text-gray-900 border-r border-black cursor-pointer hover:bg-blue-50 transition-colors relative group"
-                          onClick={() => startInlineEdit(school.id, 'teluguSetsDistributed', school.teluguSetsDistributed || 0)}
-                        >
-                          {editingCell?.schoolId === school.id && editingCell?.field === 'teluguSetsDistributed' ? (
-                            <div className="flex items-center justify-end gap-1">
-                              <input
-                                type="number"
-                                value={editingCellValue}
-                                onChange={(e) => setEditingCellValue(e.target.value)}
-                                onKeyDown={handleInlineEditKeyPress}
-                                onBlur={saveInlineEdit}
-                                autoFocus
-                                className="w-20 px-2 py-1 border-2 border-blue-500 rounded focus:outline-none text-right"
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                              <button onClick={saveInlineEdit} className="p-1 text-green-600 hover:bg-green-100 rounded">
-                                <Check className="w-3 h-3" />
-                              </button>
-                              <button onClick={cancelInlineEdit} className="p-1 text-red-600 hover:bg-red-100 rounded">
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                          ) : (
-                            <>
-                              {school.teluguSetsDistributed || 0}
-                              <span className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50">
-                                <Edit2 className="w-3 h-3 text-blue-600" />
-                              </span>
-                            </>
-                          )}
-                        </td>
-                        <td
-                          className="px-4 py-3 text-sm text-right text-gray-900 border-r border-black cursor-pointer hover:bg-blue-50 transition-colors relative group"
-                          onClick={() => startInlineEdit(school.id, 'englishSetsDistributed', school.englishSetsDistributed || 0)}
-                        >
-                          {editingCell?.schoolId === school.id && editingCell?.field === 'englishSetsDistributed' ? (
-                            <div className="flex items-center justify-end gap-1">
-                              <input
-                                type="number"
-                                value={editingCellValue}
-                                onChange={(e) => setEditingCellValue(e.target.value)}
-                                onKeyDown={handleInlineEditKeyPress}
-                                onBlur={saveInlineEdit}
-                                autoFocus
-                                className="w-20 px-2 py-1 border-2 border-blue-500 rounded focus:outline-none text-right"
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                              <button onClick={saveInlineEdit} className="p-1 text-green-600 hover:bg-green-100 rounded">
-                                <Check className="w-3 h-3" />
-                              </button>
-                              <button onClick={cancelInlineEdit} className="p-1 text-red-600 hover:bg-red-100 rounded">
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                          ) : (
-                            <>
-                              {school.englishSetsDistributed || 0}
-                              <span className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50">
-                                <Edit2 className="w-3 h-3 text-blue-600" />
-                              </span>
-                            </>
-                          )}
-                        </td>
-                        <td
-                          className="px-4 py-3 text-sm text-right text-gray-900 border-r border-black cursor-pointer hover:bg-blue-50 transition-colors relative group"
-                          onClick={() => startInlineEdit(school.id, 'teluguSetsIssued', school.teluguSetsIssued || 0)}
-                        >
-                          {editingCell?.schoolId === school.id && editingCell?.field === 'teluguSetsIssued' ? (
-                            <div className="flex items-center justify-end gap-1">
-                              <input
-                                type="number"
-                                value={editingCellValue}
-                                onChange={(e) => setEditingCellValue(e.target.value)}
-                                onKeyDown={handleInlineEditKeyPress}
-                                onBlur={saveInlineEdit}
-                                autoFocus
-                                className="w-20 px-2 py-1 border-2 border-blue-500 rounded focus:outline-none text-right"
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                              <button onClick={saveInlineEdit} className="p-1 text-green-600 hover:bg-green-100 rounded">
-                                <Check className="w-3 h-3" />
-                              </button>
-                              <button onClick={cancelInlineEdit} className="p-1 text-red-600 hover:bg-red-100 rounded">
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                          ) : (
-                            <>
-                              {school.teluguSetsIssued || 0}
-                              <span className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50">
-                                <Edit2 className="w-3 h-3 text-blue-600" />
-                              </span>
-                            </>
-                          )}
-                        </td>
-                        <td
-                          className="px-4 py-3 text-sm text-right text-gray-900 border-r border-black cursor-pointer hover:bg-blue-50 transition-colors relative group"
-                          onClick={() => startInlineEdit(school.id, 'englishSetsIssued', school.englishSetsIssued || 0)}
-                        >
-                          {editingCell?.schoolId === school.id && editingCell?.field === 'englishSetsIssued' ? (
-                            <div className="flex items-center justify-end gap-1">
-                              <input
-                                type="number"
-                                value={editingCellValue}
-                                onChange={(e) => setEditingCellValue(e.target.value)}
-                                onKeyDown={handleInlineEditKeyPress}
-                                onBlur={saveInlineEdit}
-                                autoFocus
-                                className="w-20 px-2 py-1 border-2 border-blue-500 rounded focus:outline-none text-right"
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                              <button onClick={saveInlineEdit} className="p-1 text-green-600 hover:bg-green-100 rounded">
-                                <Check className="w-3 h-3" />
-                              </button>
-                              <button onClick={cancelInlineEdit} className="p-1 text-red-600 hover:bg-red-100 rounded">
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                          ) : (
-                            <>
-                              {school.englishSetsIssued || 0}
-                              <span className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50">
-                                <Edit2 className="w-3 h-3 text-blue-600" />
-                              </span>
-                            </>
-                          )}
-                        </td>
-                        <td
-                          className="px-4 py-3 text-sm text-right text-gray-900 border-r border-black cursor-pointer hover:bg-blue-50 transition-colors relative group"
-                          onClick={() => startInlineEdit(school.id, 'teluguSetsTakenBack', school.teluguSetsTakenBack || 0)}
-                        >
-                          {editingCell?.schoolId === school.id && editingCell?.field === 'teluguSetsTakenBack' ? (
-                            <div className="flex items-center justify-end gap-1">
-                              <input
-                                type="number"
-                                value={editingCellValue}
-                                onChange={(e) => setEditingCellValue(e.target.value)}
-                                onKeyDown={handleInlineEditKeyPress}
-                                onBlur={saveInlineEdit}
-                                autoFocus
-                                className="w-20 px-2 py-1 border-2 border-blue-500 rounded focus:outline-none text-right"
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                              <button onClick={saveInlineEdit} className="p-1 text-green-600 hover:bg-green-100 rounded">
-                                <Check className="w-3 h-3" />
-                              </button>
-                              <button onClick={cancelInlineEdit} className="p-1 text-red-600 hover:bg-red-100 rounded">
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                          ) : (
-                            <>
-                              {school.teluguSetsTakenBack || 0}
-                              <span className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50">
-                                <Edit2 className="w-3 h-3 text-blue-600" />
-                              </span>
-                            </>
-                          )}
-                        </td>
-                        <td
-                          className="px-4 py-3 text-sm text-right text-gray-900 border-r border-black cursor-pointer hover:bg-blue-50 transition-colors relative group"
-                          onClick={() => startInlineEdit(school.id, 'englishSetsTakenBack', school.englishSetsTakenBack || 0)}
-                        >
-                          {editingCell?.schoolId === school.id && editingCell?.field === 'englishSetsTakenBack' ? (
-                            <div className="flex items-center justify-end gap-1">
-                              <input
-                                type="number"
-                                value={editingCellValue}
-                                onChange={(e) => setEditingCellValue(e.target.value)}
-                                onKeyDown={handleInlineEditKeyPress}
-                                onBlur={saveInlineEdit}
-                                autoFocus
-                                className="w-20 px-2 py-1 border-2 border-blue-500 rounded focus:outline-none text-right"
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                              <button onClick={saveInlineEdit} className="p-1 text-green-600 hover:bg-green-100 rounded">
-                                <Check className="w-3 h-3" />
-                              </button>
-                              <button onClick={cancelInlineEdit} className="p-1 text-red-600 hover:bg-red-100 rounded">
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                          ) : (
-                            <>
-                              {school.englishSetsTakenBack || 0}
-                              <span className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50">
-                                <Edit2 className="w-3 h-3 text-blue-600" />
-                              </span>
-                            </>
-                          )}
-                        </td>
-                        <td
-                          className="px-4 py-3 text-sm text-right text-green-700 font-medium border-r border-black cursor-pointer hover:bg-blue-50 transition-colors relative group"
-                          onClick={() => startInlineEdit(school.id, 'moneyCollected', school.moneyCollected || 0)}
-                        >
-                          {editingCell?.schoolId === school.id && editingCell?.field === 'moneyCollected' ? (
-                            <div className="flex items-center justify-end gap-1">
-                              <span className="text-green-700">₹</span>
-                              <input
-                                type="number"
-                                value={editingCellValue}
-                                onChange={(e) => setEditingCellValue(e.target.value)}
-                                onKeyDown={handleInlineEditKeyPress}
-                                onBlur={saveInlineEdit}
-                                autoFocus
-                                className="w-24 px-2 py-1 border-2 border-blue-500 rounded focus:outline-none text-right"
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                              <button onClick={saveInlineEdit} className="p-1 text-green-600 hover:bg-green-100 rounded">
-                                <Check className="w-3 h-3" />
-                              </button>
-                              <button onClick={cancelInlineEdit} className="p-1 text-red-600 hover:bg-red-100 rounded">
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                          ) : (
-                            <>
-                              ₹{school.moneyCollected.toLocaleString()}
-                              <span className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50">
-                                <Edit2 className="w-3 h-3 text-blue-600" />
-                              </span>
-                            </>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-right border-r border-black">
-                          <span className={`font-medium ${calculateMoneyDifference(school) >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                            ₹{calculateMoneyDifference(school).toLocaleString()}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center justify-center space-x-2">
-                            <button
-                              onClick={() => {
-                                setEditingItem(school);
-                                // Clear undo history when starting a new edit
-                                setUndoHistory([]);
-                                setCanUndo(false);
-                                // Map old contactPerson/contactNumber to new format for backward compatibility
-                                // Also map legacy announcementStatus to activity
-                                const formData = {
-                                  ...school,
-                                  activity: getSchoolActivity(school), // Normalize legacy values
-                                  contact_person_1_name: school.contact_person_1_name || school.contactPerson || '',
-                                  contact_person_1_phone: school.contact_person_1_phone || school.contactNumber || '',
-                                  contact_person_2_name: school.contact_person_2_name || '',
-                                  contact_person_2_phone: school.contact_person_2_phone || '',
-                                  contact_person_3_name: school.contact_person_3_name || '',
-                                  contact_person_3_phone: school.contact_person_3_phone || ''
-                                };
-                                setSchoolForm(formData);
-                                setModalType('school');
-                                setShowModal(true);
-                              }}
-                              className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-                              title="Edit"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                setEditingItem(school);
-                                setModalType('viewSchool');
-                                setShowModal(true);
-                              }}
-                              className="p-1 text-green-600 hover:bg-green-50 rounded"
-                              title="View Details"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => deleteSchool(school.id)}
-                              className="p-1 text-red-600 hover:bg-red-50 rounded"
-                              title="Delete"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
+                          </td>
+                        )}
+                        {(schoolsViewMode === 'detail' || customSchoolColumns.includes('activity')) && (
+                          <td className="px-4 py-3 border-r border-black">
+                            <span className={`px-2 py-1 text-xs rounded-full ${(() => {
+                              const activity = getSchoolActivity(school);
+                              if (activity === 'Announced' || activity === 'Settlement Closed') return 'bg-green-100 text-green-700';
+                              if (activity === 'Declined') return 'bg-red-100 text-red-700';
+                              if (activity === 'To Close' || activity === 'Announcement Pending') return 'bg-yellow-100 text-yellow-700';
+                              if (activity === 'Visited') return 'bg-blue-100 text-blue-700';
+                              return 'bg-gray-100 text-gray-700';
+                            })()
+                              }`}>
+                              {getSchoolActivity(school)}
+                            </span>
+                          </td>
+                        )}
+                        {(schoolsViewMode === 'detail' || customSchoolColumns.includes('principal')) && (
+                          <td className="px-4 py-3 text-sm text-gray-700 border-r border-black">
+                            {school.contact_person_1_name || school.contactPerson ? (
+                              <div>
+                                <div className="font-medium">{school.contact_person_1_name || school.contactPerson}</div>
+                                <div className="text-xs text-gray-500">{school.contact_person_1_phone || school.contactNumber || ''}</div>
+                              </div>
+                            ) : '-'}
+                          </td>
+                        )}
+                        {(schoolsViewMode === 'detail' || customSchoolColumns.includes('coordinator')) && (
+                          <td className="px-4 py-3 text-sm text-gray-700 border-r border-black">
+                            {school.contact_person_2_name ? (
+                              <div>
+                                <div className="font-medium">{school.contact_person_2_name}</div>
+                                <div className="text-xs text-gray-500">{school.contact_person_2_phone || ''}</div>
+                              </div>
+                            ) : '-'}
+                          </td>
+                        )}
+                        {(schoolsViewMode === 'detail' || customSchoolColumns.includes('date')) && (
+                          <td className="px-4 py-3 text-sm text-gray-600 border-r border-black">
+                            {school.date}
+                          </td>
+                        )}
+                        {(schoolsViewMode === 'detail' || customSchoolColumns.includes('comments')) && (
+                          <td className="px-4 py-3 text-sm text-gray-700 border-r border-black">
+                            {school.notes?.trim() ? school.notes : '-'}
+                          </td>
+                        )}
+                        {(schoolsViewMode === 'detail' || customSchoolColumns.includes('teluguDistr')) && (
+                          <td className="px-4 py-3 text-sm text-right text-gray-900 border-r border-black">
+                            {school.teluguSetsDistributed || 0}
+                          </td>
+                        )}
+                        {(schoolsViewMode === 'detail' || customSchoolColumns.includes('englishDistr')) && (
+                          <td className="px-4 py-3 text-sm text-right text-gray-900 border-r border-black">
+                            {school.englishSetsDistributed || 0}
+                          </td>
+                        )}
+                        {(schoolsViewMode === 'detail' || customSchoolColumns.includes('teluguIssued')) && (
+                          <td className="px-4 py-3 text-sm text-right text-gray-900 border-r border-black">
+                            {school.teluguSetsIssued || 0}
+                          </td>
+                        )}
+                        {(schoolsViewMode === 'detail' || customSchoolColumns.includes('englishIssued')) && (
+                          <td className="px-4 py-3 text-sm text-right text-gray-900 border-r border-black">
+                            {school.englishSetsIssued || 0}
+                          </td>
+                        )}
+                        {(schoolsViewMode === 'detail' || customSchoolColumns.includes('teluguBack')) && (
+                          <td className="px-4 py-3 text-sm text-right text-gray-900 border-r border-black">
+                            {school.teluguSetsTakenBack || 0}
+                          </td>
+                        )}
+                        {(schoolsViewMode === 'detail' || customSchoolColumns.includes('englishBack')) && (
+                          <td className="px-4 py-3 text-sm text-right text-gray-900 border-r border-black">
+                            {school.englishSetsTakenBack || 0}
+                          </td>
+                        )}
+                        {(schoolsViewMode === 'detail' || customSchoolColumns.includes('money')) && (
+                          <td className="px-4 py-3 text-sm text-right text-green-700 font-medium border-r border-black">
+                            ₹{(school.moneyCollected || 0).toLocaleString()}
+                          </td>
+                        )}
+                        {(schoolsViewMode === 'detail' || customSchoolColumns.includes('difference')) && (
+                          <td className="px-4 py-3 text-sm text-right border-r border-black">
+                            <span className={`font-medium ${calculateMoneyDifference(school) >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                              ₹{calculateMoneyDifference(school).toLocaleString()}
+                            </span>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
