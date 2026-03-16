@@ -115,7 +115,8 @@ const formatIssueHistoryEntries = (history = []) => {
 
       return {
         dateLabel,
-        ...itemCounts
+        ...itemCounts,
+        trackingNumber: issue.trackingNumber || ''
       };
     });
 };
@@ -558,7 +559,8 @@ const GitaDistributionPortal = () => {
     calendar: 0, chikki: 0, pamphlets: 0,
     issuedDate: new Date().toISOString().split('T')[0],
     contactPerson: '',
-    contactPhone: ''
+    contactPhone: '',
+    trackingNumber: ''
   });
 
   // Master inventory state
@@ -1462,7 +1464,8 @@ const GitaDistributionPortal = () => {
         calendar: 0, chikki: 0, pamphlets: 0,
         issuedDate: new Date().toISOString().split('T')[0],
         contactPerson: '',
-        contactPhone: ''
+        contactPhone: '',
+        trackingNumber: ''
       });
       setShowModal(false);
     } catch (error) {
@@ -4591,6 +4594,7 @@ const GitaDistributionPortal = () => {
                               <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Total Items</th>
                               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Contact Person</th>
                               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Phone Number</th>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Tracking Number</th>
                               <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Actions</th>
                             </tr>
                           </thead>
@@ -4612,7 +4616,7 @@ const GitaDistributionPortal = () => {
                               if (allIssues.length === 0) {
                                 return (
                                   <tr>
-                                    <td colSpan="13" className="px-4 py-12 text-center text-gray-500">
+                                    <td colSpan="14" className="px-4 py-12 text-center text-gray-500">
                                       <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
                                       <p>No inventory issuance records found</p>
                                     </td>
@@ -4643,6 +4647,7 @@ const GitaDistributionPortal = () => {
                                     <td className="px-4 py-3 text-sm text-right font-semibold text-green-700">{totalItems}</td>
                                     <td className="px-4 py-3 text-sm text-gray-700">{issue.contactPerson || 'N/A'}</td>
                                     <td className="px-4 py-3 text-sm text-gray-700">{issue.contactPhone || 'N/A'}</td>
+                                    <td className="px-4 py-3 text-sm text-gray-700">{issue.trackingNumber || '—'}</td>
                                     <td className="px-4 py-3 text-center">
                                       <button
                                         onClick={() => deleteInventoryIssuance(issue.teamId, issue)}
@@ -5887,6 +5892,7 @@ const GitaDistributionPortal = () => {
                                         <thead className="bg-gray-50 text-left text-gray-600">
                                           <tr>
                                             <th className="px-3 py-2 font-semibold">Date</th>
+                                            <th className="px-3 py-2 font-semibold">Tracking Number</th>
                                             {ISSUE_ITEM_FIELDS.map(({ key, label }) => (
                                               <th key={`${team.id}-head-${key}`} className="px-3 py-2 font-semibold text-right">{label}</th>
                                             ))}
@@ -5896,6 +5902,7 @@ const GitaDistributionPortal = () => {
                                           {historyEntries.map((entry, index) => (
                                             <tr key={`${team.id}-history-${index}`}>
                                               <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{entry.dateLabel}</td>
+                                              <td className="px-3 py-2 text-gray-700">{entry.trackingNumber || '—'}</td>
                                               {ISSUE_ITEM_FIELDS.map(({ key }) => (
                                                 <td key={`${team.id}-history-${index}-${key}`} className="px-3 py-2 text-right text-gray-800">{entry[key]}</td>
                                               ))}
@@ -5961,6 +5968,7 @@ const GitaDistributionPortal = () => {
                             <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Total Items</th>
                             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Contact Person</th>
                             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Phone Number</th>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Tracking Number</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y">
@@ -5981,7 +5989,7 @@ const GitaDistributionPortal = () => {
                             if (allIssues.length === 0) {
                               return (
                                 <tr>
-                                  <td colSpan="12" className="px-4 py-12 text-center text-gray-500">
+                                  <td colSpan="13" className="px-4 py-12 text-center text-gray-500">
                                     <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
                                     <p>No inventory issuance records found</p>
                                   </td>
@@ -6012,6 +6020,7 @@ const GitaDistributionPortal = () => {
                                   <td className="px-4 py-3 text-sm text-right font-semibold text-green-700">{totalItems}</td>
                                   <td className="px-4 py-3 text-sm text-gray-700">{issue.contactPerson || 'N/A'}</td>
                                   <td className="px-4 py-3 text-sm text-gray-700">{issue.contactPhone || 'N/A'}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-700">{issue.trackingNumber || '—'}</td>
                                 </tr>
                               );
                             });
@@ -6212,6 +6221,7 @@ const GitaDistributionPortal = () => {
                                 <thead className="bg-gray-50 text-left text-gray-600">
                                   <tr>
                                     <th className="px-4 py-2 font-semibold">Date</th>
+                                    <th className="px-4 py-2 font-semibold">Tracking Number</th>
                                     {ISSUE_ITEM_FIELDS.map(({ key, label }) => (
                                       <th key={`team-view-head-${key}`} className="px-4 py-2 font-semibold text-right">{label}</th>
                                     ))}
@@ -6221,6 +6231,7 @@ const GitaDistributionPortal = () => {
                                   {historyEntries.map((entry, index) => (
                                     <tr key={`team-view-history-${index}`}>
                                       <td className="px-4 py-2 text-gray-700 whitespace-nowrap">{entry.dateLabel}</td>
+                                      <td className="px-4 py-2 text-gray-700">{entry.trackingNumber || '—'}</td>
                                       {ISSUE_ITEM_FIELDS.map(({ key }) => (
                                         <td key={`team-view-history-${index}-${key}`} className="px-4 py-2 text-right text-gray-900 font-semibold">{entry[key]}</td>
                                       ))}
@@ -7956,6 +7967,17 @@ const GitaDistributionPortal = () => {
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
                       placeholder="Phone number"
                       required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Tracking Number</label>
+                    <input
+                      type="text"
+                      value={issueInventoryForm.trackingNumber || ''}
+                      onChange={(e) => setIssueInventoryForm({ ...issueInventoryForm, trackingNumber: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      placeholder="Tracking number for this issuance"
                     />
                   </div>
 
