@@ -411,6 +411,8 @@ const GitaDistributionPortal = () => {
   // UI State
   const [activeView, setActiveView] = useState('dashboard');
   const [schoolsViewMode, setSchoolsViewMode] = useState('detail'); // 'detail' | 'custom'
+  const [isSchoolColumnsModalOpen, setIsSchoolColumnsModalOpen] = useState(false);
+  const [draftCustomSchoolColumns, setDraftCustomSchoolColumns] = useState([]);
   const [customSchoolColumns, setCustomSchoolColumns] = useState(() => {
     try {
       const saved = localStorage.getItem('customSchoolColumns');
@@ -3135,13 +3137,31 @@ const GitaDistributionPortal = () => {
       return;
     }
 
+    const sanitizeForCSV = (value = '') => {
+      const text = value
+        .toString()
+        .replace(/\s*\n\s*/g, ' ')
+        .trim()
+        .replace(/[₹$€£]/g, '')
+        .replace(/\u00A0/g, ' ');
+      return text;
+    };
+
     const rows = Array.from(table.querySelectorAll('tr')).map((row) =>
       Array.from(row.querySelectorAll('th, td'))
         .map((cell) => {
           // Check if cell has a data-export-value attribute (for cells with dropdowns)
           const exportValue = cell.getAttribute('data-export-value');
-          const text = exportValue !== null ? exportValue : cell.innerText.replace(/\s*\n\s*/g, ' ').trim();
-          return `"${text.replace(/"/g, '""')}"`;
+          let text;
+          if (exportValue !== null) {
+            text = exportValue;
+          } else {
+            const clone = cell.cloneNode(true);
+            clone.querySelectorAll('[data-export-ignore="true"], button, svg, input, select, textarea').forEach((el) => el.remove());
+            text = clone.textContent || '';
+          }
+          const sanitized = sanitizeForCSV(text);
+          return `"${sanitized.replace(/"/g, '""')}"`;
         })
         .join(',')
     );
@@ -3620,41 +3640,8 @@ const GitaDistributionPortal = () => {
                     </button>
                     <button
                       onClick={() => {
-                        const allColumns = [
-                          'team',
-                          'area',
-                          'school',
-                          'activity',
-                          'principal',
-                          'coordinator',
-                          'date',
-                          'comments',
-                          'teluguDistr',
-                          'englishDistr',
-                          'teluguIssued',
-                          'englishIssued',
-                          'teluguBack',
-                          'englishBack',
-                          'money',
-                          'difference'
-                        ];
-                        const next = window.prompt(
-                          'Select columns to show in Custom View (comma separated):\n' +
-                          'team, area, school, activity, principal, coordinator, date, comments, teluguDistr, englishDistr, teluguIssued, englishIssued, teluguBack, englishBack, money, difference',
-                          customSchoolColumns.join(', ')
-                        );
-                        if (!next) return;
-                        const selected = next
-                          .split(',')
-                          .map(s => s.trim())
-                          .filter(v => allColumns.includes(v));
-                        if (selected.length === 0) return;
-                        setCustomSchoolColumns(selected);
-                        try {
-                          localStorage.setItem('customSchoolColumns', JSON.stringify(selected));
-                        } catch (e) {
-                          console.warn('Failed to save customSchoolColumns', e);
-                        }
+                        setDraftCustomSchoolColumns(customSchoolColumns);
+                        setIsSchoolColumnsModalOpen(true);
                       }}
                       className="px-2 py-1 border-l text-gray-600 hover:bg-gray-100 flex items-center justify-center"
                       title="Configure custom view columns"
@@ -3777,7 +3764,7 @@ const GitaDistributionPortal = () => {
                           <td className="px-4 py-3 text-sm text-gray-900 border-r border-black">
                             <div className="flex flex-col space-y-1">
                               <div className="font-medium text-gray-900">{school.schoolName}</div>
-                              <div className="flex flex-wrap items-center gap-1">
+                              <div className="flex flex-wrap items-center gap-1" data-export-ignore="true">
                                 <button
                                   onClick={() => {
                                     setEditingItem(school);
@@ -3921,6 +3908,118 @@ const GitaDistributionPortal = () => {
                 )}
               </div>
             </div>
+
+            {isSchoolColumnsModalOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                <div className="w-full max-w-lg bg-white rounded-lg shadow-xl overflow-hidden">
+                  <div className="flex items-center justify-between px-5 py-4 border-b">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800">Custom View Columns</h3>
+                      <p className="text-sm text-gray-500">Select the columns you want to see in Custom View</p>
+                    </div>
+                    <button
+                      onClick={() => setIsSchoolColumnsModalOpen(false)}
+                      className="p-2 rounded hover:bg-gray-100 text-gray-600"
+                      title="Close"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  {(() => {
+                    const allColumns = [
+                      { key: 'team', label: 'Team', adminOnly: true },
+                      { key: 'area', label: 'Area' },
+                      { key: 'school', label: 'School' },
+                      { key: 'activity', label: 'Activity' },
+                      { key: 'principal', label: 'Principal Details' },
+                      { key: 'coordinator', label: 'Coordinator Details' },
+                      { key: 'date', label: 'Announcement Date' },
+                      { key: 'comments', label: 'Comments' },
+                      { key: 'teluguDistr', label: 'Telugu Sets Distributed' },
+                      { key: 'englishDistr', label: 'English Sets Distributed' },
+                      { key: 'teluguIssued', label: 'Telugu Sets Issued' },
+                      { key: 'englishIssued', label: 'English Sets Issued' },
+                      { key: 'teluguBack', label: 'Telugu Sets Taken Back' },
+                      { key: 'englishBack', label: 'English Sets Taken Back' },
+                      { key: 'money', label: 'Money' },
+                      { key: 'difference', label: 'Difference' }
+                    ];
+
+                    const visibleColumns = allColumns.filter(c => !c.adminOnly || currentUser.role === 'admin');
+
+                    const toggle = (key) => {
+                      setDraftCustomSchoolColumns((prev) => {
+                        const set = new Set(prev);
+                        if (set.has(key)) set.delete(key);
+                        else set.add(key);
+                        return Array.from(set);
+                      });
+                    };
+
+                    return (
+                      <>
+                        <div className="px-5 py-4 max-h-[60vh] overflow-auto">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {visibleColumns.map(col => {
+                              const checked = draftCustomSchoolColumns.includes(col.key);
+                              return (
+                                <label key={col.key} className="flex items-start gap-2 p-2 rounded hover:bg-gray-50 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    className="mt-1"
+                                    checked={checked}
+                                    onChange={() => toggle(col.key)}
+                                  />
+                                  <span className="text-sm text-gray-800">{col.label}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between px-5 py-4 border-t bg-gray-50">
+                          <div className="text-sm text-gray-600">
+                            Selected: <span className="font-medium">{draftCustomSchoolColumns.length}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                setDraftCustomSchoolColumns(customSchoolColumns);
+                                setIsSchoolColumnsModalOpen(false);
+                              }}
+                              className="px-4 py-2 rounded-lg border bg-white hover:bg-gray-100 text-gray-700"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => {
+                                const cleaned = (draftCustomSchoolColumns || []).filter(Boolean);
+                                if (cleaned.length === 0) {
+                                  alert('Please select at least one column for Custom View.');
+                                  return;
+                                }
+                                setCustomSchoolColumns(cleaned);
+                                try {
+                                  localStorage.setItem('customSchoolColumns', JSON.stringify(cleaned));
+                                } catch (e) {
+                                  console.warn('Failed to save customSchoolColumns', e);
+                                }
+                                setSchoolsViewMode('custom');
+                                setIsSchoolColumnsModalOpen(false);
+                              }}
+                              className="px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-medium"
+                            >
+                              Save
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
